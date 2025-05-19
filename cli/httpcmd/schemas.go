@@ -11,6 +11,12 @@ type HttpRequest struct {
 	Method      string              `json:"method"`
 	URL         string              `json:"url"`
 	QueryParams map[string][]string `json:"query_params"`
+	Body        HttpBody            `json:"body"`
+}
+
+type HttpBody struct {
+	ContentType string `json:"content_type"`
+	Body        string `json:"body"` //temporarily just a string
 }
 
 func (h HttpRequest) Request() (*http.Request, error) {
@@ -29,6 +35,11 @@ func (h HttpRequest) Request() (*http.Request, error) {
 		}
 	}
 	req.URL.RawQuery = q.Encode()
+
+	if h.Body.ContentType != "" && h.Body.Body != "" {
+		req.Header.Add("Content-Type", h.Body.ContentType)
+		req.Body = io.NopCloser(strings.NewReader(h.Body.Body))
+	}
 
 	return req, nil
 }
