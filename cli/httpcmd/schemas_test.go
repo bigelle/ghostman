@@ -7,10 +7,10 @@ import (
 	"github.com/bigelle/ghostman/cli/httpcmd"
 )
 
-func Test_HttpRequest_Request(t *testing.T){
+func Test_HttpRequest_Request(t *testing.T) {
 	httpreq := httpcmd.HttpRequest{
 		Method: http.MethodGet,
-		URL: "https://catfact.ninja/fact",
+		URL:    "https://catfact.ninja/fact",
 		QueryParams: map[string][]string{
 			"max_length": {"42"},
 		},

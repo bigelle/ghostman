@@ -1,14 +1,16 @@
 package httpcmd
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 )
 
 type HttpRequest struct {
-	Method      string
-	URL         string
-	QueryParams map[string][]string
+	Method      string              `json:"method"`
+	URL         string              `json:"url"`
+	QueryParams map[string][]string `json:"query_params"`
 }
 
 func (h HttpRequest) Request() (*http.Request, error) {
@@ -29,4 +31,8 @@ func (h HttpRequest) Request() (*http.Request, error) {
 	req.URL.RawQuery = q.Encode()
 
 	return req, nil
+}
+
+func Read(r io.Reader, dest *HttpRequest) error {
+	return json.NewDecoder(r).Decode(dest)
 }
