@@ -16,7 +16,7 @@ type HttpRequest struct {
 
 type HttpBody struct {
 	ContentType string `json:"content_type"`
-	Body        string `json:"body"` //temporarily just a string
+	Body        string `json:"body"` // temporarily just a string
 }
 
 func (h HttpRequest) Request() (*http.Request, error) {

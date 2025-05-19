@@ -1,14 +1,14 @@
 /*
 Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 */
-package cli
+package cmd
 
 import (
 	"fmt"
 	"os"
 	"slices"
 
-	"github.com/bigelle/ghostman/cli/httpcmd"
+	"github.com/bigelle/ghostman/cmd/httpcmd"
 	"github.com/spf13/cobra"
 )
 

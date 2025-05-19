@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/bigelle/ghostman/cli/httpcmd"
+	"github.com/bigelle/ghostman/cmd/httpcmd"
 )
 
 func Test_HttpRequest_Request(t *testing.T) {

@@ -13,7 +13,7 @@ var getCmd = &cobra.Command{
 	Use:   "GET",
 	Short: "send a GET request",
 	Args:  cobra.ExactArgs(1),
-	RunE:  handleGet,
+	RunE:  handleGET,
 }
 
 func init() {
@@ -30,7 +30,7 @@ func init() {
 	// GETCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func handleGet(cmd *cobra.Command, args []string) error {
+func handleGET(cmd *cobra.Command, args []string) error {
 	url := args[0]
 	client := http.DefaultClient
 

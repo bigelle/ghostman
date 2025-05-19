@@ -4,8 +4,8 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 */
 package main
 
-import "github.com/bigelle/ghostman/cli"
+import "github.com/bigelle/ghostman/cmd"
 
 func main() {
-	cli.Execute()
+	cmd.Execute()
 }
