@@ -24,6 +24,13 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// GETCmd.PersistentFlags().String("foo", "", "A help for foo")
+	getCmd.PersistentFlags().StringArrayVarP(
+		&headers,
+		"header",
+		"H",
+		[]string{},
+		"add a header to the request in format HeaderName:value.",
+	)
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
@@ -32,9 +39,18 @@ func init() {
 
 func handleGET(cmd *cobra.Command, args []string) error {
 	url := args[0]
-	client := http.DefaultClient
 
-	resp, err := client.Get(url)
+	//TODO: should make a new request and fill it with everything
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := setupHeaders(req); err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

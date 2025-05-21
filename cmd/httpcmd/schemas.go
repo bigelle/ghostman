@@ -11,6 +11,7 @@ type HttpRequest struct {
 	Method      string              `json:"method"`
 	URL         string              `json:"url"`
 	QueryParams map[string][]string `json:"query_params"`
+	Headers     map[string][]string `json:"headers"`
 	Body        HttpBody            `json:"body"`
 }
 
@@ -36,6 +37,7 @@ func (h HttpRequest) Request() (*http.Request, error) {
 	}
 	req.URL.RawQuery = q.Encode()
 
+	req.Header = h.Headers
 	if h.Body.ContentType != "" && h.Body.Body != "" {
 		req.Header.Add("Content-Type", h.Body.ContentType)
 		req.Body = io.NopCloser(strings.NewReader(h.Body.Body))
