@@ -57,9 +57,9 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 		QueryParams: make(map[string][]string),
 		Headers:     make(map[string][]string),
 
-		ShouldDumpRequest:    shouldDumpRequest,
-		ShouldNotSendRequest: false,
-		ShouldDumpResponse:   shouldDumpResponse,
+		ShouldDumpRequest:  shouldDumpRequest,
+		ShouldSendRequest:  shouldSendRequest,
+		ShouldDumpResponse: shouldDumpResponse,
 	}
 
 	host, err := extractHost(args[0])
@@ -92,10 +92,9 @@ func cloneRequest(req *http.Request) (*http.Request, error) {
 		if err != nil {
 			return nil, err
 		}
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes)) // восстановили исходный
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes)) 
 	}
 
-	// Склонированный запрос
 	clone := req.Clone(req.Context())
 	if bodyBytes != nil {
 		clone.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -108,5 +107,5 @@ func dumpRequestSafely(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return httputil.DumpRequestOut(clone, true)
+	return httputil.DumpRequestOut(clone, req.Body != nil)
 }

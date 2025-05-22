@@ -15,9 +15,9 @@ type HttpRequest struct {
 	Body        HttpBody            `json:"body"`
 
 	// runtime opts
-	ShouldDumpRequest    bool
-	ShouldNotSendRequest bool
-	ShouldDumpResponse   bool
+	ShouldDumpRequest  bool
+	ShouldSendRequest  bool
+	ShouldDumpResponse bool
 }
 
 type HttpBody struct {

@@ -3,7 +3,9 @@ package httpcmd
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httputil"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -25,7 +27,7 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// GETCmd.PersistentFlags().String("foo", "", "A help for foo")
-	getCmd.PersistentFlags().StringArrayVarP(
+	getCmd.Flags().StringArrayVarP(
 		&headers,
 		"header",
 		"H",
@@ -39,6 +41,9 @@ func init() {
 }
 
 func handleGET(cmd *cobra.Command, args []string) error {
+	httpRequest.Method = http.MethodGet
+	builder := strings.Builder{}
+
 	req, err := httpRequest.Request()
 	if err != nil {
 		return err
@@ -48,26 +53,30 @@ func handleGET(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println(string(dump))
+		builder.Write(dump)
 	}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	if httpRequest.ShouldDumpResponse {
-		dump, err := httputil.DumpResponse(resp, true)
+	var resp *http.Response
+	if httpRequest.ShouldSendRequest {
+		resp, err = client.Do(req)
 		if err != nil {
 			return err
 		}
-		fmt.Println(string(dump))
-		return nil
+		if httpRequest.ShouldDumpResponse {
+			dump, err := httputil.DumpResponse(resp, true)
+			if err != nil {
+				return err
+			}
+			builder.Write(dump)
+		} else {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+			builder.Write(b)
+		}
 	}
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(b))
+
+	fmt.Print(builder.String())
 	return nil
 }
