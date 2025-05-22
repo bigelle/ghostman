@@ -2,7 +2,7 @@ package httpcmd
 
 import (
 	"fmt"
-	"net/http"
+	"io"
 	"net/http/httputil"
 
 	"github.com/spf13/cobra"
@@ -10,10 +10,11 @@ import (
 
 // is a child of http command
 var getCmd = &cobra.Command{
-	Use:   "GET",
-	Short: "send a GET request",
-	Args:  cobra.ExactArgs(1),
-	RunE:  handleGET,
+	Use:     "GET",
+	Short:   "send a GET request",
+	Args:    cobra.ExactArgs(1),
+	PreRunE: parseCommand,
+	RunE:    handleGET,
 }
 
 func init() {
@@ -38,16 +39,16 @@ func init() {
 }
 
 func handleGET(cmd *cobra.Command, args []string) error {
-	url := args[0]
-
-	//TODO: should make a new request and fill it with everything
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := httpRequest.Request()
 	if err != nil {
 		return err
 	}
-
-	if err := setupHeaders(req); err != nil {
-		return err
+	if httpRequest.ShouldDumpRequest {
+		dump, err := dumpRequestSafely(req)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(dump))
 	}
 
 	resp, err := client.Do(req)
@@ -55,11 +56,18 @@ func handleGET(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	dump, err := httputil.DumpResponse(resp, true)
+	if httpRequest.ShouldDumpResponse {
+		dump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(dump))
+		return nil
+	}
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(dump))
-
+	fmt.Println(string(b))
 	return nil
 }

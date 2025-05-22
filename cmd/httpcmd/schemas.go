@@ -13,6 +13,11 @@ type HttpRequest struct {
 	QueryParams map[string][]string `json:"query_params"`
 	Headers     map[string][]string `json:"headers"`
 	Body        HttpBody            `json:"body"`
+
+	// runtime opts
+	ShouldDumpRequest    bool
+	ShouldNotSendRequest bool
+	ShouldDumpResponse   bool
 }
 
 type HttpBody struct {

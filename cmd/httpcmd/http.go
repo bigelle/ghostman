@@ -21,14 +21,17 @@ var HttpCmd = &cobra.Command{
 	RunE:  handleHttp,
 }
 
-//flag values
+// unparsed flag values
 var (
-	shouldDumpRequest bool
-	shouldDumpResponse  bool
-	headers []string
+	shouldDumpRequest  bool
+	shouldDumpResponse bool
+	headers            []string
 )
 
 var client = http.DefaultClient
+
+// every command and flag works around this thing
+var httpRequest HttpRequest
 
 func init() {
 	// Here you will define your flags and configuration settings.
@@ -36,8 +39,8 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// httpCmd.PersistentFlags().String("foo", "", "A help for foo")
-	HttpCmd.PersistentFlags().BoolVar(&shouldDumpResponse, "dump-response", false, "dump the whole response")
 	HttpCmd.PersistentFlags().BoolVar(&shouldDumpRequest, "dump-request", false, "dump the whole request")
+	HttpCmd.PersistentFlags().BoolVar(&shouldDumpResponse, "dump-response", false, "dump the whole response")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
