@@ -45,6 +45,8 @@ func (h HttpRequest) Request() (*http.Request, error) {
 	req.Header = h.Headers
 	if h.Body.ContentType != "" && h.Body.Body != "" {
 		req.Header.Add("Content-Type", h.Body.ContentType)
+		// FIXME: should switch between known content types and properly set the Body
+		// according to the content type
 		req.Body = io.NopCloser(strings.NewReader(h.Body.Body))
 	}
 

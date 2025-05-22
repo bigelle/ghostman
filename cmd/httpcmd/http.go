@@ -27,6 +27,8 @@ var (
 	shouldDumpResponse bool
 	shouldSendRequest  bool
 	headers            []string
+	query              []string
+	jsonBody           string
 )
 
 var client = http.DefaultClient

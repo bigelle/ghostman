@@ -34,6 +34,21 @@ func init() {
 		[]string{},
 		"add a header to the request in format HeaderName:value.",
 	)
+	getCmd.Flags().StringArrayVarP(
+		&query,
+		"query",
+		"Q",
+		[]string{},
+		"explicitly add a query parameter to the request URL in format QueryParam:value.",
+	)
+
+	// different body flags
+	getCmd.Flags().StringVar(
+		&jsonBody,
+		"data-json",
+		"",
+		"sets Content-Type header to 'application/json' and adds passed string as a body",
+	)
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
