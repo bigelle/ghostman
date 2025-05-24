@@ -12,12 +12,13 @@ type HttpRequest struct {
 	URL         string              `json:"url"`
 	QueryParams map[string][]string `json:"query_params"`
 	Headers     map[string][]string `json:"headers"`
+	Cookies     map[string]string   `json:"cookies"`
 	Body        HttpBody            `json:"body"`
 
 	// runtime opts
-	ShouldDumpRequest  bool
-	ShouldSendRequest  bool
-	ShouldDumpResponse bool
+	ShouldDumpRequest  bool `json:"should_dump_request"`
+	ShouldSendRequest  bool `json:"should_send_request"`
+	ShouldDumpResponse bool `json:"should_dump_response"`
 }
 
 type HttpBody struct {
@@ -26,7 +27,7 @@ type HttpBody struct {
 }
 
 func (h HttpRequest) Request() (*http.Request, error) {
-	req, err := http.NewRequest(
+	req, err := http.NewRequest( //NOTE: shoud i use with context? and why?
 		strings.ToUpper(h.Method),
 		h.URL,
 		nil,

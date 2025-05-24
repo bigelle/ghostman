@@ -2,12 +2,14 @@ package httpcmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -50,8 +52,9 @@ func setupHeaders(req *HttpRequest) error {
 }
 
 func parseCommand(cmd *cobra.Command, args []string) error {
-	httpRequest = HttpRequest{
+	req := HttpRequest{
 		// Method would be set during the RunE func
+		Method:      cmd.Use,
 		URL:         args[0],
 		QueryParams: make(map[string][]string),
 		Headers:     make(map[string][]string),
@@ -65,22 +68,42 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	httpRequest.Headers["Host"] = append(httpRequest.Headers["Host"], *host)
+	req.Headers["Host"] = append(req.Headers["Host"], *host)
 
 	if jsonBody != "" {
 		if err := json.NewDecoder(strings.NewReader(jsonBody)).Decode(&map[string]any{}); err != nil {
 			return err
 		}
-		httpRequest.Body = HttpBody{
+		req.Body = HttpBody{
 			ContentType: "application/json",
 			Body:        jsonBody,
 		}
 	}
 
-	if err := setupHeaders(&httpRequest); err != nil {
+	if err := setupHeaders(&req); err != nil {
 		return err
 	}
 
+	ctx := cmd.Context()
+	withVal := context.WithValue(ctx, "httpReq", req)
+	cmd.SetContext(withVal)
+
+	return nil
+}
+
+func readHttpFile(cmd *cobra.Command, args []string) error {
+	read, err := os.Open(args[0])
+	if err != nil {
+		return err
+	}
+	var req HttpRequest
+	if err = Read(read, &req); err != nil {
+		return err
+	}
+
+	ctx := cmd.Context()
+	withVal := context.WithValue(ctx, "httpReq", req)
+	cmd.SetContext(withVal)
 	return nil
 }
 

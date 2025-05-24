@@ -3,7 +3,6 @@ package httpcmd
 import (
 	"fmt"
 	"io"
-	"net/http"
 	"net/http/httputil"
 	"strings"
 
@@ -56,13 +55,18 @@ func init() {
 }
 
 func handleGET(cmd *cobra.Command, args []string) error {
-	httpRequest.Method = http.MethodGet
+	val := cmd.Context().Value("httpReq")
+	httpRequest, ok := val.(HttpRequest); if !ok {
+		return fmt.Errorf("failed to get HTTP request from context")
+	}
+
 	builder := strings.Builder{}
 
 	req, err := httpRequest.Request()
 	if err != nil {
 		return err
 	}
+
 	if httpRequest.ShouldDumpRequest {
 		dump, err := dumpRequestSafely(req)
 		if err != nil {
@@ -71,9 +75,8 @@ func handleGET(cmd *cobra.Command, args []string) error {
 		builder.Write(dump)
 	}
 
-	var resp *http.Response
 	if httpRequest.ShouldSendRequest {
-		resp, err = client.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return err
 		}
