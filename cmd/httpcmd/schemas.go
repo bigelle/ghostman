@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type HttpRequest struct {
@@ -12,7 +13,7 @@ type HttpRequest struct {
 	URL         string              `json:"url"`
 	QueryParams map[string][]string `json:"query_params"`
 	Headers     map[string][]string `json:"headers"`
-	Cookies     map[string]string   `json:"cookies"`
+	Cookies     []Cookie            `json:"cookies"`
 	Body        HttpBody            `json:"body"`
 
 	// runtime opts
@@ -21,13 +22,8 @@ type HttpRequest struct {
 	ShouldDumpResponse bool `json:"should_dump_response"`
 }
 
-type HttpBody struct {
-	ContentType string `json:"content_type"`
-	Body        string `json:"body"` // temporarily just a string
-}
-
 func (h HttpRequest) Request() (*http.Request, error) {
-	req, err := http.NewRequest( //NOTE: shoud i use with context? and why?
+	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
 		strings.ToUpper(h.Method),
 		h.URL,
 		nil,
@@ -50,6 +46,9 @@ func (h HttpRequest) Request() (*http.Request, error) {
 		// according to the content type
 		req.Body = io.NopCloser(strings.NewReader(h.Body.Body))
 	}
+	for _, c := range h.Cookies {
+		req.AddCookie(c.Http())
+	}
 
 	return req, nil
 }
@@ -57,3 +56,39 @@ func (h HttpRequest) Request() (*http.Request, error) {
 func Read(r io.Reader, dest *HttpRequest) error {
 	return json.NewDecoder(r).Decode(dest)
 }
+
+type HttpBody struct {
+	ContentType string `json:"content_type"`
+	Body        string `json:"body"` // temporarily just a string
+}
+
+// created only to make sure that it has proper json tags
+type Cookie struct {
+	Name        string    `json:"name"`
+	Value       string    `json:"value"`
+	Domain      string    `json:"domain"`
+	Expires     time.Time `json:"expires"`
+	HttpOnly    bool      `json:"http_only"`
+	MaxAge      int       `json:"max_age"`
+	Partitioned bool      `json:"partitioned"`
+	Path        string    `json:"path"`
+	SameSite    string    `json:"same_site"` // FIXME: add a enum
+	Secure      bool      `json:"secure"`
+}
+
+func (c Cookie) Http() *http.Cookie {
+	return &http.Cookie{
+		Name:        c.Name,
+		Value:       c.Value,
+		Domain:      c.Domain,
+		Expires:     c.Expires,
+		HttpOnly:    c.HttpOnly,
+		MaxAge:      c.MaxAge,
+		Partitioned: c.Partitioned,
+		Path:        c.Path,
+		SameSite:    http.SameSiteDefaultMode, // FIXME: default by now but should be fixed
+		Secure:      c.Secure,
+	}
+}
+
+var c http.Cookie
