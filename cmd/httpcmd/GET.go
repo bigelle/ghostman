@@ -40,6 +40,13 @@ func init() {
 		[]string{},
 		"explicitly add a query parameter to the request URL in format QueryParam:value.",
 	)
+	getCmd.Flags().StringArrayVarP(
+		&cookies,
+		"cookie",
+		"C",
+		[]string{},
+		"add a cookie to the request in format CookieName:value.",
+		)
 
 	// different body flags
 	getCmd.Flags().StringVar(

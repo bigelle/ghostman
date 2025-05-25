@@ -15,11 +15,11 @@ import (
 
 // HttpCmd represents the http command
 var HttpCmd = &cobra.Command{
-	Use:   "http",
-	Short: "deez nuts",
-	Args:  cobra.ExactArgs(1),
+	Use:     "http",
+	Short:   "deez nuts",
+	Args:    cobra.ExactArgs(1),
 	PreRunE: readHttpFile,
-	RunE:  handleHttp,
+	RunE:    handleHttp,
 }
 
 // flag values
@@ -29,6 +29,7 @@ var (
 	shouldSendRequest  bool
 	headers            []string
 	query              []string
+	cookies            []string
 	jsonBody           string
 )
 
@@ -53,7 +54,8 @@ func handleHttp(cmd *cobra.Command, args []string) error {
 	builder := strings.Builder{}
 
 	val := cmd.Context().Value("httpReq")
-	req, ok := val.(HttpRequest); if !ok {
+	req, ok := val.(HttpRequest)
+	if !ok {
 		return fmt.Errorf("can't read http request")
 	}
 

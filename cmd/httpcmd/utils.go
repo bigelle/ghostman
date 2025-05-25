@@ -16,7 +16,7 @@ import (
 )
 
 // works with both headers and query parameters
-func parseHTTPKeyValue(h []string) (*map[string][]string, error) {
+func parseHTTPKeyValues(h []string) (*map[string][]string, error) {
 	// example: -H "Accept:application/json,text/plain"
 	// should return: "Accept": {"application/json", "text/plain"}
 	// same with query params
@@ -36,8 +36,22 @@ func parseHTTPKeyValue(h []string) (*map[string][]string, error) {
 	return &result, nil
 }
 
+func parseCookieKeyValue(c []string) (*map[string]string, error) {
+	result := make(map[string]string)
+	for _, raw := range c {
+		parts := strings.SplitN(raw, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("Wrong key:value pair format: %s\n", raw)
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		result[key] = value
+	}
+	return &result, nil
+}
+
 func setupHeaders(req *HttpRequest) error {
-	hs, err := parseHTTPKeyValue(headers)
+	hs, err := parseHTTPKeyValues(headers)
 	if err != nil {
 		return err
 	}
@@ -83,6 +97,11 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	if err := setupHeaders(&req); err != nil {
 		return err
 	}
+	cookies, err := parseCookieKeyValue(cookies)
+	if err != nil {
+		return err
+	}
+	req.Cookies = *cookies
 
 	ctx := cmd.Context()
 	withVal := context.WithValue(ctx, "httpReq", req)
