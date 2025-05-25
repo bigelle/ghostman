@@ -26,22 +26,19 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// GETCmd.PersistentFlags().String("foo", "", "A help for foo")
-	getCmd.Flags().StringArrayVarP(
-		&headers,
+	getCmd.Flags().StringArrayP(
 		"header",
 		"H",
 		[]string{},
 		"add a header to the request in format HeaderName:value.",
 	)
-	getCmd.Flags().StringArrayVarP(
-		&query,
+	getCmd.Flags().StringArrayP(
 		"query",
 		"Q",
 		[]string{},
 		"explicitly add a query parameter to the request URL in format QueryParam:value.",
 	)
-	getCmd.Flags().StringArrayVarP(
-		&cookies,
+	getCmd.Flags().StringArrayP(
 		"cookie",
 		"C",
 		[]string{},
@@ -49,8 +46,7 @@ func init() {
 		)
 
 	// different body flags
-	getCmd.Flags().StringVar(
-		&jsonBody,
+	getCmd.Flags().String(
 		"data-json",
 		"",
 		"sets Content-Type header to 'application/json' and adds passed string as a body",

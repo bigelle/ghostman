@@ -50,7 +50,46 @@ func parseCookieKeyValue(c []string) (*map[string]string, error) {
 	return &result, nil
 }
 
-func setupHeaders(req *HttpRequest) error {
+func parseCommand(cmd *cobra.Command, args []string) error {
+	req := HttpRequest{
+		// Method would be set during the RunE func
+		Method:      cmd.Use,
+		URL:         args[0],
+		QueryParams: make(map[string][]string),
+		Headers:     make(map[string][]string),
+	}
+	dumpReq, _ := cmd.Flags().GetBool("dump-request")
+	if dumpReq != req.ShouldDumpRequest {
+		req.ShouldSendRequest = dumpReq
+	}
+	dumpResp, _ := cmd.Flags().GetBool("dump-response")
+	if dumpResp != req.ShouldDumpResponse{
+		req.ShouldDumpResponse = dumpResp
+	}
+	sendReq, _ := cmd.Flags().GetBool("send-request")
+	if sendReq != req.ShouldSendRequest{
+		req.ShouldSendRequest = sendReq
+	}
+
+	host, err := extractHost(args[0])
+	if err != nil {
+		return err
+	}
+	req.Headers["Host"] = append(req.Headers["Host"], *host)
+
+	jsonBody, _ := cmd.Flags().GetString("data-json")
+	if jsonBody != "" {
+		if err := json.NewDecoder(strings.NewReader(jsonBody)).Decode(&map[string]any{}); err != nil {
+			return err
+		}
+		req.Body = HttpBody{
+			ContentType: "application/json",
+			Body:        jsonBody,
+		}
+	}
+
+
+	headers, _ := cmd.Flags().GetStringArray("header")
 	hs, err := parseHTTPKeyValues(headers)
 	if err != nil {
 		return err
@@ -62,46 +101,12 @@ func setupHeaders(req *HttpRequest) error {
 		}
 	}
 
-	return nil
-}
-
-func parseCommand(cmd *cobra.Command, args []string) error {
-	req := HttpRequest{
-		// Method would be set during the RunE func
-		Method:      cmd.Use,
-		URL:         args[0],
-		QueryParams: make(map[string][]string),
-		Headers:     make(map[string][]string),
-
-		ShouldDumpRequest:  shouldDumpRequest,
-		ShouldSendRequest:  shouldSendRequest,
-		ShouldDumpResponse: shouldDumpResponse,
-	}
-
-	host, err := extractHost(args[0])
+	cookies, _ := cmd.Flags().GetStringArray("cookie")
+	parsed, err := parseCookieKeyValue(cookies)
 	if err != nil {
 		return err
 	}
-	req.Headers["Host"] = append(req.Headers["Host"], *host)
-
-	if jsonBody != "" {
-		if err := json.NewDecoder(strings.NewReader(jsonBody)).Decode(&map[string]any{}); err != nil {
-			return err
-		}
-		req.Body = HttpBody{
-			ContentType: "application/json",
-			Body:        jsonBody,
-		}
-	}
-
-	if err := setupHeaders(&req); err != nil {
-		return err
-	}
-	cookies, err := parseCookieKeyValue(cookies)
-	if err != nil {
-		return err
-	}
-	req.Cookies = *cookies
+	req.Cookies = *parsed
 
 	ctx := cmd.Context()
 	withVal := context.WithValue(ctx, "httpReq", req)
@@ -118,6 +123,19 @@ func readHttpFile(cmd *cobra.Command, args []string) error {
 	var req HttpRequest
 	if err = Read(read, &req); err != nil {
 		return err
+	}
+
+	dumpReq, _ := cmd.Flags().GetBool("dump-request")
+	if dumpReq != req.ShouldDumpRequest {
+		req.ShouldSendRequest = dumpReq
+	}
+	dumpResp, _ := cmd.Flags().GetBool("dump-response")
+	if dumpResp != req.ShouldDumpResponse{
+		req.ShouldDumpResponse = dumpResp
+	}
+	sendReq, _ := cmd.Flags().GetBool("send-request")
+	if sendReq != req.ShouldSendRequest{
+		req.ShouldSendRequest = sendReq
 	}
 
 	ctx := cmd.Context()

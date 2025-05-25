@@ -56,7 +56,7 @@ func TestUtils_parseHTTPHeaders(t *testing.T) {
 
 	for _, tcase := range cases {
 		t.Run(tcase.Name, func(t *testing.T) {
-			result, err := parseHTTPKeyValue(tcase.Input)
+			result, err := parseHTTPKeyValues(tcase.Input)
 			if err != nil && !tcase.ExpectErr {
 				t.Errorf("unexpected error: %s", err.Error())
 			} else {

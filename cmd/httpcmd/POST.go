@@ -33,22 +33,19 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// POSTCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	postCmd.Flags().StringArrayVarP(
-		&headers,
+	postCmd.Flags().StringArrayP(
 		"header",
 		"H",
 		[]string{},
 		"add a header to the request in format HeaderName:value.",
 	)
-	postCmd.Flags().StringArrayVarP(
-		&query,
+	postCmd.Flags().StringArrayP(
 		"query",
 		"Q",
 		[]string{},
 		"explicitly add a query parameter to the request URL in format QueryParam:value.",
 	)
-	postCmd.Flags().StringArrayVarP(
-		&cookies,
+	postCmd.Flags().StringArrayP(
 		"cookie",
 		"C",
 		[]string{},
@@ -56,8 +53,7 @@ func init() {
 		)
 
 	// different body flags
-	postCmd.Flags().StringVar(
-		&jsonBody,
+	postCmd.Flags().String(
 		"data-json",
 		"",
 		"sets Content-Type header to 'application/json' and adds passed string as a body",
