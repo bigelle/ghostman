@@ -5,9 +5,9 @@ package httpcmd
 
 import (
 	"fmt"
-	"net/http"
+	"io"
 	"net/http/httputil"
-	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -16,11 +16,10 @@ import (
 var postCmd = &cobra.Command{
 	Use:   "POST",
 	Short: "send a POST request",
-	Args: cobra.ExactArgs(2),
+	Args: cobra.ExactArgs(1),
+	PreRunE: parseCommand,
 	RunE: handlePOST,
 }
-
-var contentType = "text/plain"
 
 func init() {
 	HttpCmd.AddCommand(postCmd)
@@ -34,27 +33,78 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// POSTCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	postCmd.Flags().StringVar(&contentType, "content-type", "text/plain", "set a content type for this request")
+	postCmd.Flags().StringArrayVarP(
+		&headers,
+		"header",
+		"H",
+		[]string{},
+		"add a header to the request in format HeaderName:value.",
+	)
+	postCmd.Flags().StringArrayVarP(
+		&query,
+		"query",
+		"Q",
+		[]string{},
+		"explicitly add a query parameter to the request URL in format QueryParam:value.",
+	)
+	postCmd.Flags().StringArrayVarP(
+		&cookies,
+		"cookie",
+		"C",
+		[]string{},
+		"add a cookie to the request in format CookieName:value.",
+		)
+
+	// different body flags
+	postCmd.Flags().StringVar(
+		&jsonBody,
+		"data-json",
+		"",
+		"sets Content-Type header to 'application/json' and adds passed string as a body",
+	)
 }
 
 func handlePOST(cmd *cobra.Command, args []string) error {
-	url := args[0]
-	client := http.DefaultClient
-	r, err := os.Open(args[1])
+	val := cmd.Context().Value("httpReq")
+	httpRequest, ok := val.(HttpRequest); if !ok {
+		return fmt.Errorf("failed to get HTTP request from context")
+	}
+
+	builder := strings.Builder{}
+
+	req, err := httpRequest.Request()
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.Post(url, contentType, r)
-	if err != nil {
-		return err
+	if httpRequest.ShouldDumpRequest {
+		dump, err := dumpRequestSafely(req)
+		if err != nil {
+			return err
+		}
+		builder.Write(dump)
 	}
 
-	dump, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		return err
+	if httpRequest.ShouldSendRequest {
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		if httpRequest.ShouldDumpResponse {
+			dump, err := httputil.DumpResponse(resp, true)
+			if err != nil {
+				return err
+			}
+			builder.Write(dump)
+		} else {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+			builder.Write(b)
+		}
 	}
-	fmt.Println(string(dump))
 
+	fmt.Print(builder.String())
 	return nil
 }
