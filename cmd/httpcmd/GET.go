@@ -6,6 +6,7 @@ import (
 	"net/http/httputil"
 	"strings"
 
+	"github.com/bigelle/ghostman/internal/httpcore"
 	"github.com/spf13/cobra"
 )
 
@@ -59,13 +60,13 @@ func init() {
 
 func handleGET(cmd *cobra.Command, args []string) error {
 	val := cmd.Context().Value("httpReq")
-	httpRequest, ok := val.(HttpRequest); if !ok {
+	httpRequest, ok := val.(httpcore.HttpRequest); if !ok {
 		return fmt.Errorf("failed to get HTTP request from context")
 	}
 
 	builder := strings.Builder{}
 
-	req, err := httpRequest.Request()
+	req, err := httpRequest.ToHTTP()
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-package httpcmd
+package httpcore
 
 import (
 	"reflect"

@@ -10,6 +10,7 @@ import (
 	"net/http/httputil"
 	"strings"
 
+	"github.com/bigelle/ghostman/internal/httpcore"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +19,7 @@ var HttpCmd = &cobra.Command{
 	Use:     "http",
 	Short:   "deez nuts",
 	Args:    cobra.ExactArgs(1),
-	PreRunE: readHttpFile,
+	//PreRunE: readHttpFile, //TODO:
 	RunE:    handleHttp,
 }
 
@@ -43,12 +44,12 @@ func handleHttp(cmd *cobra.Command, args []string) error {
 	builder := strings.Builder{}
 
 	val := cmd.Context().Value("httpReq")
-	req, ok := val.(HttpRequest)
+	req, ok := val.(httpcore.HttpRequest)
 	if !ok {
 		return fmt.Errorf("can't read http request")
 	}
 
-	r, err := req.Request()
+	r, err := req.ToHTTP()
 	if err != nil {
 		return err
 	}

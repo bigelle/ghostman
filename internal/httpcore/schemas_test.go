@@ -1,21 +1,20 @@
-package httpcmd_test
+package httpcore
 
 import (
 	"net/http"
 	"testing"
 
-	"github.com/bigelle/ghostman/cmd/httpcmd"
 )
 
 func Test_HttpRequest_Request(t *testing.T) {
-	httpreq := httpcmd.HttpRequest{
+	httpreq := HttpRequest{
 		Method: http.MethodGet,
 		URL:    "https://catfact.ninja/fact",
 		QueryParams: map[string][]string{
 			"max_length": {"42"},
 		},
 	}
-	req, err := httpreq.Request()
+	req, err := httpreq.ToHTTP()
 	if err != nil {
 		t.FailNow()
 	}

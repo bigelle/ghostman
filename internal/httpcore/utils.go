@@ -1,13 +1,10 @@
-package httpcmd
+package httpcore
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -75,7 +72,7 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	req.Headers["Host"] = append(req.Headers["Host"], *host)
+	req.Headers["Host"] = append(req.Headers["Host"], host)
 
 	jsonBody, _ := cmd.Flags().GetString("data-json")
 	if jsonBody != "" {
@@ -120,8 +117,12 @@ func readHttpFile(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	var req HttpRequest
-	if err = Read(read, &req); err != nil {
+	buf := bytes.NewBuffer([]byte{})
+	if _, err := buf.ReadFrom(read); err != nil {
+		return err
+	}
+
+	req, err := NewHttpRequestFromJSON(buf.Bytes()); if err != nil {
 		return err
 	}
 
@@ -144,37 +145,20 @@ func readHttpFile(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func extractHost(rawURL string) (*string, error) {
+func extractHost(rawURL string) (string, error) {
 	p, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	host := p.Hostname()
-	return &host, nil
+	return host, nil
 }
 
-func cloneRequest(req *http.Request) (*http.Request, error) {
-	var bodyBytes []byte
-	if req.Body != nil {
-		var err error
-		bodyBytes, err = io.ReadAll(req.Body)
-		if err != nil {
-			return nil, err
-		}
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
 
-	clone := req.Clone(req.Context())
-	if bodyBytes != nil {
-		clone.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-	return clone, nil
-}
-
-func dumpRequestSafely(req *http.Request) ([]byte, error) {
-	clone, err := cloneRequest(req)
+func extractQueryParams(raw string) (map[string][]string, error) {
+	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, err
 	}
-	return httputil.DumpRequestOut(clone, req.Body != nil)
+	return parsed.Query(), nil
 }
