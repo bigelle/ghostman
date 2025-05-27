@@ -6,10 +6,12 @@ package httpcmd
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httputil"
 	"strings"
 
 	"github.com/bigelle/ghostman/internal/httpcore"
+	"github.com/bigelle/ghostman/internal/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -68,6 +70,7 @@ func handlePOST(cmd *cobra.Command, args []string) error {
 	}
 
 	builder := strings.Builder{}
+	client := shared.HttpClientPool.Get().(*http.Client)
 
 	req, err := httpRequest.ToHTTP()
 	if err != nil {

@@ -4,13 +4,17 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package httpcmd
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"strings"
 
 	"github.com/bigelle/ghostman/internal/httpcore"
+	"github.com/bigelle/ghostman/internal/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -19,11 +23,9 @@ var HttpCmd = &cobra.Command{
 	Use:     "http",
 	Short:   "deez nuts",
 	Args:    cobra.ExactArgs(1),
-	//PreRunE: readHttpFile, //TODO:
+	PreRunE: preHandleHttp, //TODO:
 	RunE:    handleHttp,
 }
-
-var client = http.DefaultClient
 
 func init() {
 	// Here you will define your flags and configuration settings.
@@ -40,8 +42,31 @@ func init() {
 	// httpCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
+func preHandleHttp(cmd *cobra.Command, args []string) error {
+	path := args[0]
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	buf := bytes.NewBuffer([]byte{})
+	if _, err := buf.ReadFrom(file); err != nil {
+		return err
+	}
+	req, err := httpcore.NewHttpRequestFromJSON(buf.Bytes())
+	if err != nil {
+		return err
+	}
+	//TODO: apply flags
+
+	ctx := cmd.Context()
+	withVal := context.WithValue(ctx, "httpReq", *req)
+	cmd.SetContext(withVal)
+	return nil
+}
+
 func handleHttp(cmd *cobra.Command, args []string) error {
 	builder := strings.Builder{}
+	client := shared.HttpClientPool.Get().(*http.Client)
 
 	val := cmd.Context().Value("httpReq")
 	req, ok := val.(httpcore.HttpRequest)
