@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestUtils_parseHTTPHeaders(t *testing.T) {
+func TestUtilsParseHTTPHeaders(t *testing.T) {
 	cases := []struct {
 		Name      string
 		Input     []string
@@ -56,14 +56,14 @@ func TestUtils_parseHTTPHeaders(t *testing.T) {
 
 	for _, tcase := range cases {
 		t.Run(tcase.Name, func(t *testing.T) {
-			result, err := parseHTTPKeyValues(tcase.Input)
+			result, err := ParseKeyValues(tcase.Input)
 			if err != nil && !tcase.ExpectErr {
 				t.Errorf("unexpected error: %s", err.Error())
 			} else {
 				return
 			}
 
-			if !reflect.DeepEqual(*result, tcase.Output) {
+			if !reflect.DeepEqual(result, tcase.Output) {
 				t.Errorf("test result differs from expected result: \n expected %+v\n got %+v\n", tcase.Output, result)
 			}
 		})

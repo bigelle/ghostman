@@ -17,11 +17,11 @@ import (
 
 // postCmd represents the POST command
 var postCmd = &cobra.Command{
-	Use:   "POST",
-	Short: "send a POST request",
-	Args: cobra.ExactArgs(1),
+	Use:     "POST",
+	Short:   "send a POST request",
+	Args:    cobra.ExactArgs(1),
 	PreRunE: parseCommand,
-	RunE: handlePOST,
+	RunE:    handlePOST,
 }
 
 func init() {
@@ -53,7 +53,7 @@ func init() {
 		"C",
 		[]string{},
 		"add a cookie to the request in format CookieName:value.",
-		)
+	)
 
 	// different body flags
 	postCmd.Flags().String(
@@ -65,12 +65,12 @@ func init() {
 
 func handlePOST(cmd *cobra.Command, args []string) error {
 	val := cmd.Context().Value("httpReq")
-	httpRequest, ok := val.(httpcore.HttpRequest); if !ok {
+	httpRequest, ok := val.(httpcore.HttpRequest)
+	if !ok {
 		return fmt.Errorf("failed to get HTTP request from context")
 	}
 
 	builder := strings.Builder{}
-	client := shared.HttpClientPool.Get().(*http.Client)
 
 	req, err := httpRequest.ToHTTP()
 	if err != nil {
@@ -86,6 +86,7 @@ func handlePOST(cmd *cobra.Command, args []string) error {
 	}
 
 	if httpRequest.ShouldSendRequest {
+		client := shared.HttpClientPool.Get().(*http.Client)
 		resp, err := client.Do(req)
 		if err != nil {
 			return err
@@ -103,6 +104,7 @@ func handlePOST(cmd *cobra.Command, args []string) error {
 			}
 			builder.Write(b)
 		}
+		shared.HttpClientPool.Put(client)
 	}
 
 	fmt.Print(builder.String())

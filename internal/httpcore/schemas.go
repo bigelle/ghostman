@@ -3,6 +3,7 @@ package httpcore
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -22,13 +23,10 @@ func NewHttpRequest(urlArg, method string) (*HttpRequest, error) {
 		ShouldSanitizeQuery: true,
 	}
 
-	host, err := extractHost(urlArg)
+	q, err := ExtractQueryParams(urlArg)
 	if err != nil {
 		return nil, err
 	}
-	req.Host = host
-
-	q, err := extractQueryParams(urlArg)
 	for k, v := range q {
 		req.AddQueryParam(k, v...)
 	}
@@ -48,13 +46,12 @@ func NewHttpRequestFromJSON(j []byte) (*HttpRequest, error) {
 }
 
 type HttpRequest struct {
+	// serializable
 	Method      string              `json:"method"`
 	URL         string              `json:"url"`
-	Host        string              `json:"host"`
 	QueryParams map[string][]string `json:"query_params"`
 	Headers     map[string][]string `json:"headers"`
 	Cookies     map[string]string   `json:"cookies"`
-	Body        HttpBody            `json:"body"`
 
 	// runtime opts
 	ShouldDumpRequest     bool `json:"should_dump_request"`
@@ -63,17 +60,28 @@ type HttpRequest struct {
 	ShouldSanitizeQuery   bool `json:"should_sanitize_query"`
 	ShouldSanitizeHeaders bool `json:"should_sanitize_headers"`
 	ShouldSanitizeCookies bool `json:"should_sanitize_cookies"`
+
+	// only through flags or methods
+	body HttpBody
 }
 
 func (h HttpRequest) ToHTTP() (*http.Request, error) {
+	var body io.Reader
+	if !h.body.IsEmpty() {
+		if err := h.body.Setup(); err != nil {
+			return nil, err
+		}
+	}
+
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
 		strings.ToUpper(h.Method),
 		h.URL,
-		nil,
+		body,
 	)
 	if err != nil {
 		return nil, err
 	}
+
 	q := req.URL.Query()
 	for key, val := range h.QueryParams {
 		for _, v := range val {
@@ -82,13 +90,12 @@ func (h HttpRequest) ToHTTP() (*http.Request, error) {
 	}
 	req.URL.RawQuery = q.Encode()
 
-	req.Header = h.Headers
-	if h.Body.ContentType != "" && h.Body.Body != "" {
-		req.Header.Add("Content-Type", h.Body.ContentType)
-		// FIXME: should switch between known content types and properly set the Body
-		// according to the content type
-		req.Body = io.NopCloser(strings.NewReader(h.Body.Body))
+	for k, vals := range h.Headers {
+		for _, v := range vals {
+			req.Header.Add(k, v)
+		}
 	}
+
 	for k, v := range h.Cookies {
 		req.AddCookie(&http.Cookie{Name: k, Value: v})
 	}
@@ -120,11 +127,53 @@ func (h *HttpRequest) AddCookie(key string, val string) {
 	h.Cookies[key] = val
 }
 
+func (h *HttpRequest) SetBodyJSON(b []byte) error {
+	if !isValidJSON(b) {
+		return fmt.Errorf("not a valid JSON")
+	}
+	h.body = HttpBody{
+		ContentType: "application/json",
+		Source:      b,
+	}
+	return nil
+}
+
 type HttpBody struct {
-	ContentType string `json:"content_type"`
-	Body        string `json:"body"`
+	ContentType string
+	Source      []byte
 
 	bodyR io.Reader
 }
 
-// TODO: body.Set() that accepts content type and related thing and creates proper reader
+func (h HttpBody) IsEmpty() bool {
+	return h.ContentType == "" && len(h.Source) == 0
+}
+
+// TODO: body.Setup() that creates proper reader
+func (h *HttpBody) Setup() error {
+	switch h.ContentType {
+	case "application/json":
+		return h.setupJSON()
+	default:
+		return fmt.Errorf("unknown content type: %s", h.ContentType)
+	}
+}
+
+func (h *HttpBody) setupJSON() error {
+	if !isValidJSON(h.Source) {
+		return fmt.Errorf("not a valid JSON")
+	}
+	buf := bytes.NewReader(h.Source)
+	h.bodyR = buf
+	return nil
+}
+
+func isValidJSON(buf []byte) bool {
+	trimmed := bytes.TrimSpace(buf)
+	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+		if json.Valid(trimmed) {
+			return true
+		}
+	}
+	return false
+}

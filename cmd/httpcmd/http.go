@@ -23,7 +23,7 @@ var HttpCmd = &cobra.Command{
 	Use:     "http",
 	Short:   "deez nuts",
 	Args:    cobra.ExactArgs(1),
-	PreRunE: preHandleHttp, //TODO:
+	PreRunE: preHandleHttp, // TODO:
 	RunE:    handleHttp,
 }
 
@@ -36,6 +36,7 @@ func init() {
 	HttpCmd.PersistentFlags().Bool("dump-request", false, "dump the whole request")
 	HttpCmd.PersistentFlags().Bool("dump-response", false, "dump the whole response")
 	HttpCmd.PersistentFlags().Bool("send-request", true, "send request")
+	// TODO: add other flags for sanitizing empty cookies, headers, query
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
@@ -56,7 +57,7 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	//TODO: apply flags
+	applyRunTimeFlags(cmd, req)
 
 	ctx := cmd.Context()
 	withVal := context.WithValue(ctx, "httpReq", *req)
@@ -66,7 +67,6 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 
 func handleHttp(cmd *cobra.Command, args []string) error {
 	builder := strings.Builder{}
-	client := shared.HttpClientPool.Get().(*http.Client)
 
 	val := cmd.Context().Value("httpReq")
 	req, ok := val.(httpcore.HttpRequest)
@@ -89,6 +89,7 @@ func handleHttp(cmd *cobra.Command, args []string) error {
 
 	var resp *http.Response
 	if req.ShouldSendRequest {
+		client := shared.HttpClientPool.Get().(*http.Client)
 		resp, err = client.Do(r)
 		if err != nil {
 			return err
@@ -106,6 +107,7 @@ func handleHttp(cmd *cobra.Command, args []string) error {
 			}
 			builder.Write(b)
 		}
+		shared.HttpClientPool.Put(client)
 	}
 
 	fmt.Print(builder.String())

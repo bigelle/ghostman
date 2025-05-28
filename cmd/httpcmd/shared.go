@@ -16,7 +16,11 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	//TODO: parse other args
+	applyRunTimeFlags(cmd, req)
+	req, err = applyRequestFlags(cmd, *req)
+	if err != nil {
+		return err
+	}
 
 	ctx := cmd.Context()
 	withVal := context.WithValue(ctx, "httpReq", *req)
@@ -50,3 +54,50 @@ func cloneRequest(req *http.Request) (*http.Request, error) {
 	return clone, nil
 }
 
+func applyRunTimeFlags(cmd *cobra.Command, req *httpcore.HttpRequest) {
+	dumpReq, _ := cmd.Flags().GetBool("dump-request")
+	dumpResp, _ := cmd.Flags().GetBool("dump-response")
+	shouldSend, _ := cmd.Flags().GetBool("send-request")
+	// TODO: apply other flags if they r done
+
+	if cmd.Flags().Changed("dump-request"){
+		req.ShouldDumpRequest = dumpReq
+	}
+	if cmd.Flags().Changed("dump-response"){
+		req.ShouldDumpResponse = dumpResp
+	}
+	if cmd.Flags().Changed("send-request"){
+		req.ShouldSendRequest = shouldSend
+	}
+}
+
+func applyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.HttpRequest, error) {
+	h, _ := cmd.Flags().GetStringArray("header")
+	headers, err := httpcore.ParseKeyValues(h)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range headers {
+		req.AddHeader(k, v...)
+	}
+
+	q, _ := cmd.Flags().GetStringArray("query")
+	query, err := httpcore.ParseKeyValues(q)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range query {
+		req.AddQueryParam(k, v...)
+	}
+
+	c, _ := cmd.Flags().GetStringArray("cookie")
+	cookies, err := httpcore.ParseKeySingleValue(c)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range cookies {
+		req.AddCookie(k, v)
+	}
+
+	return &req, nil
+}
