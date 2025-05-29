@@ -65,13 +65,17 @@ type HttpRequest struct {
 	body HttpBody
 }
 
+func (h HttpRequest) IsEmptyBody() bool {
+	return h.body.IsEmpty()
+}
+
 func (h HttpRequest) ToHTTP() (*http.Request, error) {
 	var body io.Reader
 	if !h.body.IsEmpty() {
 		if err := h.body.Setup(); err != nil {
 			return nil, err
 		}
-		body = bytes.NewReader(h.body.Source)
+		body = h.body.Reader
 	}
 
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
@@ -140,20 +144,19 @@ func (h *HttpRequest) SetBodyJSON(b []byte) error {
 	}
 	h.body = HttpBody{
 		ContentType: "application/json",
-		Source:      b,
+		Bytes:       b,
 	}
 	return nil
 }
 
 type HttpBody struct {
 	ContentType string
-	Source      []byte
-
-	bodyR io.Reader
+	Bytes       []byte
+	Reader      io.Reader
 }
 
 func (h HttpBody) IsEmpty() bool {
-	return h.ContentType == "" && len(h.Source) == 0
+	return h.ContentType == "" && len(h.Bytes) == 0
 }
 
 // TODO: body.Setup() that creates proper reader
@@ -167,11 +170,11 @@ func (h *HttpBody) Setup() error {
 }
 
 func (h *HttpBody) setupJSON() error {
-	if !IsValidJSON(h.Source) {
+	if !IsValidJSON(h.Bytes) {
 		return fmt.Errorf("not a valid JSON")
 	}
-	buf := bytes.NewReader(h.Source)
-	h.bodyR = buf
+	buf := bytes.NewReader(h.Bytes)
+	h.Reader = buf
 	return nil
 }
 
