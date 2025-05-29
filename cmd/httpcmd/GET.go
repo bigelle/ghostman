@@ -75,7 +75,7 @@ func handleGET(cmd *cobra.Command, args []string) error {
 	}
 
 	if httpRequest.ShouldDumpRequest {
-		dump, err := dumpRequestSafely(req)
+		dump, err := httputil.DumpRequestOut(req, true)
 		if err != nil {
 			return err
 		}

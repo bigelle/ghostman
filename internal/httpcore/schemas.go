@@ -71,6 +71,7 @@ func (h HttpRequest) ToHTTP() (*http.Request, error) {
 		if err := h.body.Setup(); err != nil {
 			return nil, err
 		}
+		body = bytes.NewReader(h.body.Source)
 	}
 
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
@@ -98,6 +99,12 @@ func (h HttpRequest) ToHTTP() (*http.Request, error) {
 
 	for k, v := range h.Cookies {
 		req.AddCookie(&http.Cookie{Name: k, Value: v})
+	}
+
+	if !h.body.IsEmpty() {
+		if err := h.body.Setup(); err != nil {
+			return nil, err
+		}
 	}
 
 	return req, nil
@@ -128,7 +135,7 @@ func (h *HttpRequest) AddCookie(key string, val string) {
 }
 
 func (h *HttpRequest) SetBodyJSON(b []byte) error {
-	if !isValidJSON(b) {
+	if !IsValidJSON(b) {
 		return fmt.Errorf("not a valid JSON")
 	}
 	h.body = HttpBody{
@@ -160,7 +167,7 @@ func (h *HttpBody) Setup() error {
 }
 
 func (h *HttpBody) setupJSON() error {
-	if !isValidJSON(h.Source) {
+	if !IsValidJSON(h.Source) {
 		return fmt.Errorf("not a valid JSON")
 	}
 	buf := bytes.NewReader(h.Source)
@@ -168,7 +175,7 @@ func (h *HttpBody) setupJSON() error {
 	return nil
 }
 
-func isValidJSON(buf []byte) bool {
+func IsValidJSON(buf []byte) bool {
 	trimmed := bytes.TrimSpace(buf)
 	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
 		if json.Valid(trimmed) {

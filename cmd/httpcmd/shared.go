@@ -3,9 +3,12 @@ package httpcmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"strings"
 
 	"github.com/bigelle/ghostman/internal/httpcore"
 	"github.com/spf13/cobra"
@@ -21,6 +24,36 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	json, _ := cmd.Flags().GetString("data-json")
+	if json != "" {
+		if strings.HasPrefix(json, "@") {
+			// treating like a file
+			path := strings.TrimPrefix(json, "@")
+			info, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return fmt.Errorf("can't use a dir as a json")
+			}
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if err := req.SetBodyJSON(b); err != nil {
+				return err
+			}
+		} else {
+			// trying to treat it like a json
+			b := []byte(json)
+			if !httpcore.IsValidJSON(b) {
+				return fmt.Errorf("not a valid json")
+			}
+			if err := req.SetBodyJSON(b); err != nil {
+				return err
+			}
+		}
+	}
 
 	ctx := cmd.Context()
 	withVal := context.WithValue(ctx, "httpReq", *req)
@@ -33,7 +66,7 @@ func dumpRequestSafely(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return httputil.DumpRequestOut(clone, req.Body != nil)
+	return httputil.DumpRequestOut(clone, true)
 }
 
 func cloneRequest(req *http.Request) (*http.Request, error) {
@@ -60,13 +93,13 @@ func applyRunTimeFlags(cmd *cobra.Command, req *httpcore.HttpRequest) {
 	shouldSend, _ := cmd.Flags().GetBool("send-request")
 	// TODO: apply other flags if they r done
 
-	if cmd.Flags().Changed("dump-request"){
+	if cmd.Flags().Changed("dump-request") {
 		req.ShouldDumpRequest = dumpReq
 	}
-	if cmd.Flags().Changed("dump-response"){
+	if cmd.Flags().Changed("dump-response") {
 		req.ShouldDumpResponse = dumpResp
 	}
-	if cmd.Flags().Changed("send-request"){
+	if cmd.Flags().Changed("send-request") {
 		req.ShouldSendRequest = shouldSend
 	}
 }
