@@ -44,34 +44,9 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	json, _ := cmd.Flags().GetString("data-json")
-	if json != "" {
-		if strings.HasPrefix(json, "@") {
-			// treating like a file
-			path := strings.TrimPrefix(json, "@")
-			info, err := os.Stat(path)
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return fmt.Errorf("can't use a dir as a json")
-			}
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if err := req.SetBodyJSON(b); err != nil {
-				return err
-			}
-		} else {
-			// trying to treat it like a json
-			b := []byte(json)
-			if !httpcore.IsValidJSON(b) {
-				return fmt.Errorf("not a valid json")
-			}
-			if err := req.SetBodyJSON(b); err != nil {
-				return err
-			}
+	if isDataFlagUsed(cmd) {
+		if err := applyBody(cmd, req); err != nil {
+			return err
 		}
 	}
 
@@ -108,19 +83,29 @@ func cloneRequest(req *http.Request) (*http.Request, error) {
 }
 
 func applyRunTimeFlags(cmd *cobra.Command, req *httpcore.HttpRequest) {
-	dumpReq, _ := cmd.Flags().GetBool("dump-request")
-	dumpResp, _ := cmd.Flags().GetBool("dump-response")
-	shouldSend, _ := cmd.Flags().GetBool("send-request")
-	// TODO: apply other flags if they r done
-
 	if cmd.Flags().Changed("dump-request") {
-		req.ShouldDumpRequest = dumpReq
+		f, _ := cmd.Flags().GetBool("dump-request")
+		req.ShouldDumpRequest = f
 	}
 	if cmd.Flags().Changed("dump-response") {
-		req.ShouldDumpResponse = dumpResp
+		f, _ := cmd.Flags().GetBool("dump-response")
+		req.ShouldDumpResponse = f
 	}
 	if cmd.Flags().Changed("send-request") {
-		req.ShouldSendRequest = shouldSend
+		f, _ := cmd.Flags().GetBool("send-request")
+		req.ShouldSendRequest = f
+	}
+	if cmd.Flags().Changed("sanitize-cookies") {
+		f, _ := cmd.Flags().GetBool("sanitize-cookies")
+		req.ShouldSanitizeCookies = f
+	}
+	if cmd.Flags().Changed("sanitize-headers") {
+		f, _ := cmd.Flags().GetBool("sanitize-headers")
+		req.ShouldSanitizeHeaders = f
+	}
+	if cmd.Flags().Changed("sanitize-query") {
+		f, _ := cmd.Flags().GetBool("sanitize-query")
+		req.ShouldDumpResponse = f
 	}
 }
 
@@ -153,4 +138,52 @@ func applyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 	}
 
 	return &req, nil
+}
+
+func isDataFlagUsed(cmd *cobra.Command) bool {
+	return cmd.Flags().Changed("data-json")
+}
+
+func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	switch {
+	case cmd.Flags().Changed("data-json"):
+		return applyBodyJSON(cmd, req)
+	default:
+		return nil
+	}
+}
+
+func applyBodyJSON(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	json, _ := cmd.Flags().GetString("data-json")
+	json = strings.TrimSpace(json)
+	if json != "" {
+		if strings.HasPrefix(json, "@") {
+			// treating like a file
+			path := strings.TrimPrefix(json, "@")
+			info, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return fmt.Errorf("can't use a dir as a json")
+			}
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if err := req.SetBodyJSON(b); err != nil {
+				return err
+			}
+		} else {
+			// trying to treat it like a json
+			b := []byte(json)
+			if !httpcore.IsValidJSON(b) {
+				return fmt.Errorf("not a valid json")
+			}
+			if err := req.SetBodyJSON(b); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

@@ -36,7 +36,9 @@ func init() {
 	HttpCmd.PersistentFlags().Bool("dump-request", false, "dump the whole request")
 	HttpCmd.PersistentFlags().Bool("dump-response", false, "dump the whole response")
 	HttpCmd.PersistentFlags().Bool("send-request", true, "send request")
-	// TODO: add other flags for sanitizing empty cookies, headers, query
+	HttpCmd.PersistentFlags().Bool("sanitize-cookies", true, "omits empty or malformed cookies")
+	HttpCmd.PersistentFlags().Bool("sanitize-headers", true, "omits empty or malformed headers")
+	HttpCmd.PersistentFlags().Bool("sanitize-query", true, "omits empty or malformed query parameters")
 
 	// different body flags
 	HttpCmd.PersistentFlags().String(
@@ -68,34 +70,9 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 	shared.BytesBufPool.Put(buf)
 
 	applyRunTimeFlags(cmd, req)
-	json, _ := cmd.Flags().GetString("data-json")
-	if json != "" {
-		if strings.HasPrefix(json, "@") {
-			// treating like a file
-			path := strings.TrimPrefix(json, "@")
-			info, err := os.Stat(path)
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return fmt.Errorf("can't use a dir as a json")
-			}
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if err := req.SetBodyJSON(b); err != nil {
-				return err
-			}
-		} else {
-			// trying to treat it like a json
-			b := []byte(json)
-			if !httpcore.IsValidJSON(b) {
-				return fmt.Errorf("not a valid json")
-			}
-			if err := req.SetBodyJSON(b); err != nil {
-				return err
-			}
+	if isDataFlagUsed(cmd) {
+		if err := applyBody(cmd, req); err != nil {
+			return err
 		}
 	}
 

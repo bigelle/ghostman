@@ -163,7 +163,7 @@ func (h *HttpBody) Setup() error {
 	switch h.ContentType {
 	case "application/json":
 		return h.setupJSON()
-	//TODO: other content types
+	// TODO: other content types
 	default:
 		return fmt.Errorf("unknown content type: %s", h.ContentType)
 	}
@@ -186,4 +186,28 @@ func IsValidJSON(buf []byte) bool {
 		}
 	}
 	return false
+}
+
+func NewHttpResponse(r *http.Response) (HttpResponse, error) {
+	resp := HttpResponse{
+		Code:    uint(r.StatusCode),
+		Headers: r.Header,
+		// TODO: response cookies
+	}
+	if r.Body != nil {
+		resp.body = r.Body
+	}
+	return resp, nil
+}
+
+type HttpResponse struct {
+	Code    uint                `json:"code"`
+	Headers map[string][]string `json:"headers"`
+	Cookies map[string]string   `json:"cookies"`
+
+	body io.Reader
+}
+
+func (h HttpResponse) IsSuccessful() bool {
+	return h.Code >= http.StatusOK && h.Code < http.StatusMultipleChoices
 }
