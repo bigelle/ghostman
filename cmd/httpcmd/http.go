@@ -23,7 +23,7 @@ var HttpCmd = &cobra.Command{
 	Use:     "http",
 	Short:   "deez nuts",
 	Args:    cobra.ExactArgs(1),
-	PreRunE: preHandleHttp, // TODO:
+	PreRunE: preHandleHttp,
 	RunE:    handleHttp,
 }
 
@@ -55,7 +55,8 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	buf := bytes.NewBuffer([]byte{})
+
+	buf := shared.BytesBufPool.Get().(*bytes.Buffer)
 	if _, err := buf.ReadFrom(file); err != nil {
 		return err
 	}
@@ -63,6 +64,9 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	buf.Reset()
+	shared.BytesBufPool.Put(buf)
+
 	applyRunTimeFlags(cmd, req)
 	json, _ := cmd.Flags().GetString("data-json")
 	if json != "" {
@@ -125,7 +129,6 @@ func handleHttp(cmd *cobra.Command, args []string) error {
 
 	var resp *http.Response
 	if req.ShouldSendRequest {
-		client := shared.HttpClientPool.Get().(*http.Client)
 		resp, err = client.Do(r)
 		if err != nil {
 			return err
@@ -143,7 +146,6 @@ func handleHttp(cmd *cobra.Command, args []string) error {
 			}
 			builder.Write(b)
 		}
-		shared.HttpClientPool.Put(client)
 	}
 
 	fmt.Print(builder.String())

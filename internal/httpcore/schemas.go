@@ -156,14 +156,14 @@ type HttpBody struct {
 }
 
 func (h HttpBody) IsEmpty() bool {
-	return h.ContentType == "" && len(h.Bytes) == 0
+	return h.ContentType == "" && len(h.Bytes) == 0 && h.Reader == nil
 }
 
-// TODO: body.Setup() that creates proper reader
 func (h *HttpBody) Setup() error {
 	switch h.ContentType {
 	case "application/json":
 		return h.setupJSON()
+	//TODO: other content types
 	default:
 		return fmt.Errorf("unknown content type: %s", h.ContentType)
 	}

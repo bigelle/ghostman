@@ -3,16 +3,36 @@ package httpcmd
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/bigelle/ghostman/internal/httpcore"
 	"github.com/spf13/cobra"
 )
+
+var client = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
+		MaxConnsPerHost:     10,
+		MaxIdleConnsPerHost: 10,
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		Proxy:               http.ProxyFromEnvironment,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	},
+}
 
 func parseCommand(cmd *cobra.Command, args []string) error {
 	req, err := httpcore.NewHttpRequest(args[0], cmd.Name())
