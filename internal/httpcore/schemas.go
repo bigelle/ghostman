@@ -70,18 +70,10 @@ func (h HttpRequest) IsEmptyBody() bool {
 }
 
 func (h HttpRequest) ToHTTP() (*http.Request, error) {
-	var body io.Reader
-	if !h.body.IsEmpty() {
-		if err := h.body.Setup(); err != nil {
-			return nil, err
-		}
-		body = h.body.Reader
-	}
-
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
 		strings.ToUpper(h.Method),
 		h.URL,
-		body,
+		h.body.Reader,
 	)
 	if err != nil {
 		return nil, err
@@ -106,9 +98,6 @@ func (h HttpRequest) ToHTTP() (*http.Request, error) {
 	}
 
 	if !h.body.IsEmpty() {
-		if err := h.body.Setup(); err != nil {
-			return nil, err
-		}
 		req.Header.Add("Content-Type", h.body.ContentType)
 	}
 
@@ -144,56 +133,30 @@ func (h *HttpRequest) SetBodyJSON(b []byte) error {
 	if !IsValidJSON(b) {
 		return fmt.Errorf("not a valid JSON")
 	}
+	r := bytes.NewReader(b)
 	h.body = HttpBody{
 		ContentType: "application/json",
-		Bytes:       b,
+		Reader: r,
 	}
 	return nil
 }
 
 func (h *HttpRequest) SetBodyPlainText(b []byte, enc string) error {
+	r := bytes.NewReader(b)
 	h.body = HttpBody{
 		ContentType: "text/plain; charset=" + enc,
-		Bytes:       b,
+		Reader: r,
 	}
 	return nil
 }
 
 type HttpBody struct {
 	ContentType string
-	Bytes       []byte
 	Reader      io.Reader
 }
 
 func (h HttpBody) IsEmpty() bool {
-	return h.ContentType == "" && len(h.Bytes) == 0 && h.Reader == nil
-}
-
-func (h *HttpBody) Setup() error {
-	switch { // awful
-	case h.ContentType == "application/json":
-		return h.setupJSON()
-	case strings.HasPrefix(h.ContentType, "text/plain"):
-		return h.setupPlainText()
-	// TODO: other content types
-	default:
-		return fmt.Errorf("unknown content type: %s", h.ContentType)
-	}
-}
-
-func (h *HttpBody) setupJSON() error {
-	if !IsValidJSON(h.Bytes) {
-		return fmt.Errorf("not a valid JSON")
-	}
-	buf := bytes.NewReader(h.Bytes)
-	h.Reader = buf
-	return nil
-}
-
-func (h *HttpBody) setupPlainText() error {
-	buf := bytes.NewReader(h.Bytes)
-	h.Reader = buf
-	return nil
+	return h.ContentType == "" && h.Reader == nil
 }
 
 func IsValidJSON(buf []byte) bool {
