@@ -1,6 +1,7 @@
 package httpcmd
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http/httputil"
@@ -73,11 +74,14 @@ func handleGET(cmd *cobra.Command, args []string) error {
 	}
 
 	if httpRequest.ShouldDumpRequest {
-		dump, err := httputil.DumpRequestOut(req, true)
+		d, err := httputil.DumpRequestOut(req, true)
 		if err != nil {
 			return err
 		}
-		builder.Write(dump)
+		builder.Write(d)
+		if !bytes.HasSuffix(d, []byte("\n")) {
+			builder.WriteString("\n")
+		}
 	}
 
 	if httpRequest.ShouldSendRequest {
@@ -86,17 +90,23 @@ func handleGET(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		if httpRequest.ShouldDumpResponse {
-			dump, err := httputil.DumpResponse(resp, true)
+			d, err := httputil.DumpResponse(resp, true)
 			if err != nil {
 				return err
 			}
-			builder.Write(dump)
+			builder.Write(d)
+			if !bytes.HasSuffix(d, []byte("\n")) {
+				builder.WriteString("\n")
+			}
 		} else {
 			b, err := io.ReadAll(resp.Body)
 			if err != nil {
 				return err
 			}
 			builder.Write(b)
+			if !bytes.HasSuffix(b, []byte("\n")) {
+				builder.WriteString("\n")
+			}
 		}
 	}
 

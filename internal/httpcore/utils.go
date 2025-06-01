@@ -15,7 +15,7 @@ func ParseKeyValues(h []string) (map[string][]string, error) {
 	for _, raw := range h {
 		parts := strings.SplitN(raw, ":", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("Wrong key:value pair format: %s\n", raw)
+			return nil, fmt.Errorf("wrong key:value pair format: %s", raw)
 		}
 		key := strings.TrimSpace(parts[0])
 		values := strings.Split(parts[1], ",")
@@ -40,7 +40,7 @@ func ParseKeySingleValue(h []string) (map[string]string, error) {
 	for _, raw := range h {
 		parts := strings.SplitN(raw, ":", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("Wrong key:value pair format: %s\n", raw)
+			return nil, fmt.Errorf("wrong key:value pair format: %s", raw)
 		}
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])

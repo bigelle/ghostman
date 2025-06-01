@@ -141,13 +141,15 @@ func applyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 }
 
 func isDataFlagUsed(cmd *cobra.Command) bool {
-	return cmd.Flags().Changed("data-json")
+	return cmd.Flags().Changed("data-json") || cmd.Flags().Changed("data-plain")
 }
 
 func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	switch {
 	case cmd.Flags().Changed("data-json"):
 		return applyBodyJSON(cmd, req)
+	case cmd.Flags().Changed("data-plain"):
+		return applyBodyPlainText(cmd, req)
 	default:
 		return nil
 	}
@@ -156,34 +158,72 @@ func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 func applyBodyJSON(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	json, _ := cmd.Flags().GetString("data-json")
 	json = strings.TrimSpace(json)
-	if json != "" {
-		if strings.HasPrefix(json, "@") {
-			// treating like a file
-			path := strings.TrimPrefix(json, "@")
-			info, err := os.Stat(path)
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return fmt.Errorf("can't use a dir as a json")
-			}
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if err := req.SetBodyJSON(b); err != nil {
-				return err
-			}
-		} else {
-			// trying to treat it like a json
-			b := []byte(json)
-			if !httpcore.IsValidJSON(b) {
-				return fmt.Errorf("not a valid json")
-			}
-			if err := req.SetBodyJSON(b); err != nil {
-				return err
-			}
+	if isFile(json) {
+		// treating like a file
+		path := strings.TrimPrefix(json, "@")
+		info, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return fmt.Errorf("can't use a dir as a json")
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := req.SetBodyJSON(b); err != nil {
+			return err
+		}
+	} else {
+		// trying to treat it like a json
+		b := []byte(json)
+		if !httpcore.IsValidJSON(b) {
+			return fmt.Errorf("not a valid json")
+		}
+		if err := req.SetBodyJSON(b); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func applyBodyPlainText(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-plain")
+	arg = strings.TrimSpace(arg)
+	txt := arg
+	enc := "utf-8"
+
+	if i := strings.Index(txt, ":"); i != -1 {
+		pref := strings.ToLower(arg[:i])
+		switch pref {
+		case "utf-8", "utf-16":
+			enc = pref
+			txt = arg[i+1:]
+		default:
+			return fmt.Errorf("not a valid encoding")
+		}
+	}
+
+	if isFile(txt) {
+		file := strings.TrimPrefix(txt, "@")
+		b, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		if err := req.SetBodyPlainText(b, enc); err != nil {
+			return err
+		}
+	} else {
+		b := []byte(txt)
+		if err := req.SetBodyPlainText(b, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// FIXME: probably should return an error
+func isFile(str string) bool {
+	return strings.HasPrefix(str, "@")
 }

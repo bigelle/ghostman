@@ -109,6 +109,7 @@ func (h HttpRequest) ToHTTP() (*http.Request, error) {
 		if err := h.body.Setup(); err != nil {
 			return nil, err
 		}
+		req.Header.Add("Content-Type", h.body.ContentType)
 	}
 
 	return req, nil
@@ -150,6 +151,14 @@ func (h *HttpRequest) SetBodyJSON(b []byte) error {
 	return nil
 }
 
+func (h *HttpRequest) SetBodyPlainText(b []byte, enc string) error {
+	h.body = HttpBody{
+		ContentType: "text/plain; charset=" + enc,
+		Bytes:       b,
+	}
+	return nil
+}
+
 type HttpBody struct {
 	ContentType string
 	Bytes       []byte
@@ -161,9 +170,11 @@ func (h HttpBody) IsEmpty() bool {
 }
 
 func (h *HttpBody) Setup() error {
-	switch h.ContentType {
-	case "application/json":
+	switch { // awful
+	case h.ContentType == "application/json":
 		return h.setupJSON()
+	case strings.HasPrefix(h.ContentType, "text/plain"):
+		return h.setupPlainText()
 	// TODO: other content types
 	default:
 		return fmt.Errorf("unknown content type: %s", h.ContentType)
@@ -174,6 +185,12 @@ func (h *HttpBody) setupJSON() error {
 	if !IsValidJSON(h.Bytes) {
 		return fmt.Errorf("not a valid JSON")
 	}
+	buf := bytes.NewReader(h.Bytes)
+	h.Reader = buf
+	return nil
+}
+
+func (h *HttpBody) setupPlainText() error {
 	buf := bytes.NewReader(h.Bytes)
 	h.Reader = buf
 	return nil
