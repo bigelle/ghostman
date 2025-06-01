@@ -141,7 +141,9 @@ func applyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 }
 
 func isDataFlagUsed(cmd *cobra.Command) bool {
-	return cmd.Flags().Changed("data-json") || cmd.Flags().Changed("data-plain")
+	return cmd.Flags().Changed("data-json") ||
+		cmd.Flags().Changed("data-plain") ||
+		cmd.Flags().Changed("data-html")
 }
 
 func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
@@ -150,6 +152,8 @@ func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		return applyBodyJSON(cmd, req)
 	case cmd.Flags().Changed("data-plain"):
 		return applyBodyPlainText(cmd, req)
+	case cmd.Flags().Changed("data-html"):
+		return applyBodyHTML(cmd, req)
 	default:
 		return nil
 	}
@@ -161,13 +165,6 @@ func applyBodyJSON(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	if isFile(json) {
 		// treating like a file
 		path := strings.TrimPrefix(json, "@")
-		info, err := os.Stat(path)
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return fmt.Errorf("can't use a dir as a json")
-		}
 		b, err := os.ReadFile(path)
 		if err != nil {
 			return err
@@ -197,6 +194,7 @@ func applyBodyPlainText(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	if i := strings.Index(txt, ":"); i != -1 {
 		pref := strings.ToLower(arg[:i])
 		switch pref {
+		//TODO: other encodings
 		case "utf-8", "utf-16":
 			enc = pref
 			txt = arg[i+1:]
@@ -223,7 +221,28 @@ func applyBodyPlainText(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	return nil
 }
 
-// FIXME: probably should return an error
+func applyBodyHTML(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-html")
+	arg = strings.TrimSpace(arg)
+
+	if isFile(arg) {
+		file := strings.TrimPrefix(arg, "@")
+		b, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		if err := req.SetBodyHTML(b); err != nil {
+			return err
+		}
+	} else {
+		b := []byte(arg)
+		if err := req.SetBodyHTML(b); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func isFile(str string) bool {
 	return strings.HasPrefix(str, "@")
 }

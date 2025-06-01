@@ -142,9 +142,24 @@ func (h *HttpRequest) SetBodyJSON(b []byte) error {
 }
 
 func (h *HttpRequest) SetBodyPlainText(b []byte, enc string) error {
+	//TODO: move the whole logic from cmd to here
+	//it should only call for predefined funcs and not do anything itself
 	r := bytes.NewReader(b)
 	h.body = HttpBody{
 		ContentType: "text/plain; charset=" + enc,
+		Reader: r,
+	}
+	return nil
+}
+
+func (h *HttpRequest) SetBodyHTML(b []byte) error {
+	c := http.DetectContentType(b)
+	if c != "text/html; charset=utf-8" {
+		return fmt.Errorf("not a valid HTML")
+	}
+	r := bytes.NewReader(b)
+	h.body = HttpBody{
+		ContentType: c,
 		Reader: r,
 	}
 	return nil

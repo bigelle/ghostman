@@ -55,6 +55,11 @@ func init() {
 		"",
 		"sets Content-Type header to 'text/plain' and adds passed string as a body",
 	)
+	HttpCmd.PersistentFlags().String(
+		"data-html",
+		"",
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// httpCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
