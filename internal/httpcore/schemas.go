@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func NewHttpRequest(urlArg, method string) (*HttpRequest, error) {
@@ -15,7 +16,6 @@ func NewHttpRequest(urlArg, method string) (*HttpRequest, error) {
 		URL:         urlArg,
 		QueryParams: make(map[string][]string),
 		Headers:     make(map[string][]string),
-		Cookies:     make(map[string]string),
 
 		ShouldDumpRequest:   false,
 		ShouldDumpResponse:  false,
@@ -51,7 +51,7 @@ type HttpRequest struct {
 	URL         string              `json:"url"`
 	QueryParams map[string][]string `json:"query_params"`
 	Headers     map[string][]string `json:"headers"`
-	Cookies     map[string]string   `json:"cookies"`
+	Cookies     []Cookie            `json:"cookies"`
 
 	// runtime opts
 	ShouldDumpRequest     bool `json:"should_dump_request"`
@@ -101,8 +101,8 @@ func (h HttpRequest) ToHTTP() (*http.Request, error) {
 		}
 	}
 
-	for k, v := range h.Cookies {
-		req.AddCookie(&http.Cookie{Name: k, Value: v})
+	for _, v := range h.Cookies {
+		req.AddCookie(&http.Cookie{Name: v.Name, Value: v.Value})
 	}
 
 	if !h.body.IsEmpty() {
@@ -131,11 +131,12 @@ func (h *HttpRequest) AddHeader(key string, val ...string) {
 }
 
 // TODO: set, get, del
+// TODO: replace key, val with a whole cookie
 func (h *HttpRequest) AddCookie(key string, val string) {
 	if h.ShouldSanitizeCookies && len(val) == 0 {
 		return
 	}
-	h.Cookies[key] = val
+	h.Cookies = append(h.Cookies, Cookie{Name: key, Value: val})
 }
 
 func (h *HttpRequest) SetBodyJSON(b []byte) error {
@@ -188,6 +189,39 @@ func IsValidJSON(buf []byte) bool {
 	return false
 }
 
+type CookieJar map[string]Cookie
+
+func (j CookieJar) Get(d string) *Cookie {
+	c := j[d]
+	return &c
+}
+
+func (j *CookieJar) Load(r io.Reader) error {
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+	return dec.Decode(j)
+}
+
+func (j CookieJar) Save(w io.Writer) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(j)
+}
+
+type Cookie struct {
+	Name        string        `json:"name"`
+	Value       string        `json:"value"`
+	Domain      string        `json:"domain,omitzero"`
+	Expires     time.Time     `json:"expires,omitzero"`
+	HttpOnly    bool          `json:"http_only,omitzero"`
+	MaxAge      int           `json:"max_age,omitzero"`
+	Partitioned bool          `json:"partitioned,omitzero"`
+	Path        string        `json:"path,omitzero"`
+	SameSite    http.SameSite `json:"same_site,omitzero"` // TODO: replace with my own for proper serialization
+	Secure      bool          `json:"secure,omitzero"`
+}
+
+// NOTE: the next whole thing is used only in test mode
 func NewHttpResponse(r *http.Response) (HttpResponse, error) {
 	resp := HttpResponse{
 		Code:    uint(r.StatusCode),
@@ -203,7 +237,7 @@ func NewHttpResponse(r *http.Response) (HttpResponse, error) {
 type HttpResponse struct {
 	Code    uint                `json:"code"`
 	Headers map[string][]string `json:"headers"`
-	Cookies map[string]string   `json:"cookies"`
+	Cookies []Cookie            `json:"cookies"`
 
 	body io.Reader
 }

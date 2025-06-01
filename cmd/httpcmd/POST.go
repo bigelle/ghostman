@@ -62,7 +62,7 @@ func init() {
 }
 
 func handlePOST(cmd *cobra.Command, args []string) error {
-	val := cmd.Context().Value("httpReq")
+	val := cmd.Context().Value(ctxKeyHttpReq)
 	httpRequest, ok := val.(httpcore.HttpRequest)
 	if !ok {
 		return fmt.Errorf("failed to get HTTP request from context")

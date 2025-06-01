@@ -18,6 +18,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type ctxKey string
+
+const ctxKeyHttpReq ctxKey = "httpReq"
+
 // HttpCmd represents the http command
 var HttpCmd = &cobra.Command{
 	Use:     "http",
@@ -59,7 +63,7 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 	}
 
 	buf := shared.BytesBufPool.Get().(*bytes.Buffer)
-	if _, err := buf.ReadFrom(file); err != nil {
+	if _, err = buf.ReadFrom(file); err != nil {
 		return err
 	}
 	req, err := httpcore.NewHttpRequestFromJSON(buf.Bytes())
@@ -77,7 +81,7 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	withVal := context.WithValue(ctx, "httpReq", *req)
+	withVal := context.WithValue(ctx, ctxKeyHttpReq, *req)
 	cmd.SetContext(withVal)
 	return nil
 }
@@ -85,7 +89,7 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 func handleHttp(cmd *cobra.Command, args []string) error {
 	builder := strings.Builder{}
 
-	val := cmd.Context().Value("httpReq")
+	val := cmd.Context().Value(ctxKeyHttpReq)
 	req, ok := val.(httpcore.HttpRequest)
 	if !ok {
 		return fmt.Errorf("can't read http request")
@@ -97,7 +101,8 @@ func handleHttp(cmd *cobra.Command, args []string) error {
 	}
 
 	if req.ShouldDumpRequest {
-		d, err := dumpRequestSafely(r)
+		var d []byte
+		d, err = dumpRequestSafely(r)
 		if err != nil {
 			return err
 		}

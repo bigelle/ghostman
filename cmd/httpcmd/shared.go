@@ -51,7 +51,7 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	withVal := context.WithValue(ctx, "httpReq", *req)
+	withVal := context.WithValue(ctx, ctxKeyHttpReq, *req)
 	cmd.SetContext(withVal)
 	return nil
 }
