@@ -143,7 +143,8 @@ func applyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 func isDataFlagUsed(cmd *cobra.Command) bool {
 	return cmd.Flags().Changed("data-json") ||
 		cmd.Flags().Changed("data-plain") ||
-		cmd.Flags().Changed("data-html")
+		cmd.Flags().Changed("data-html") ||
+		cmd.Flags().Changed("data-form")
 }
 
 func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
@@ -154,6 +155,8 @@ func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		return applyBodyPlainText(cmd, req)
 	case cmd.Flags().Changed("data-html"):
 		return applyBodyHTML(cmd, req)
+	case cmd.Flags().Changed("data-form"):
+		return applyBodyForm(cmd, req)
 	default:
 		return nil
 	}
@@ -194,7 +197,7 @@ func applyBodyPlainText(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	if i := strings.Index(txt, ":"); i != -1 {
 		pref := strings.ToLower(arg[:i])
 		switch pref {
-		//TODO: other encodings
+		// TODO: other encodings
 		case "utf-8", "utf-16":
 			enc = pref
 			txt = arg[i+1:]
@@ -239,6 +242,36 @@ func applyBodyHTML(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		if err := req.SetBodyHTML(b); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func applyBodyForm(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	var err error
+	args, _ := cmd.Flags().GetStringArray("form")
+
+	pairs := make(map[string][]string)
+	for _, arg := range args {
+		arg = strings.TrimSpace(arg)
+		parts := strings.Split(arg, "=")
+		if len(parts) > 2 {
+			return fmt.Errorf("wrong form syntax")
+		}
+		key := parts[0]
+		val := parts[1]
+		if isFile(val) {
+			var valb []byte
+			file := strings.TrimPrefix(val, "@")
+			valb, err = os.ReadFile(file)
+			if err != nil {
+				return err
+			}
+			val = string(valb)
+		}
+		pairs[key] = append(pairs[key], val)
+	}
+	if err := req.SetBodyForm(pairs); err != nil {
+		return err
 	}
 	return nil
 }

@@ -47,13 +47,6 @@ func init() {
 		"add a cookie to the request in format CookieName:value.",
 	)
 
-	// different body flags
-	getCmd.Flags().String(
-		"data-json",
-		"",
-		"sets Content-Type header to 'application/json' and adds passed string as a body",
-	)
-
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// GETCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -160,6 +161,22 @@ func (h *HttpRequest) SetBodyHTML(b []byte) error {
 	r := bytes.NewReader(b)
 	h.body = HttpBody{
 		ContentType: c,
+		Reader: r,
+	}
+	return nil
+}
+
+func (h *HttpRequest) SetBodyForm(pairs map[string][]string) error {
+	formdata := url.Values{}
+	for k, val := range pairs {
+		for _, v := range val {
+			formdata.Add(k, v)
+		}
+	}
+	enc := formdata.Encode()
+	r := bytes.NewReader([]byte(enc))
+	h.body = HttpBody{ 
+		ContentType: "application/x-www-form-urlencoded",
 		Reader: r,
 	}
 	return nil
