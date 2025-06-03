@@ -182,6 +182,10 @@ func (h *HttpRequest) SetBodyForm(pairs map[string][]string) error {
 	return nil
 }
 
+func (h *HttpRequest) AddBodyMultipart() error {
+	return nil
+}
+
 type HttpBody struct {
 	ContentType string
 	Reader      io.Reader

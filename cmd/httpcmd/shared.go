@@ -157,6 +157,8 @@ func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		return applyBodyHTML(cmd, req)
 	case cmd.Flags().Changed("data-form"):
 		return applyBodyForm(cmd, req)
+	case cmd.Flags().Changed("data-multipart"):
+		return applyBodyMultipart(cmd, req)
 	default:
 		return nil
 	}
@@ -248,7 +250,7 @@ func applyBodyHTML(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 
 func applyBodyForm(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	var err error
-	args, _ := cmd.Flags().GetStringArray("form")
+	args, _ := cmd.Flags().GetStringArray("data-form")
 
 	pairs := make(map[string][]string)
 	for _, arg := range args {
@@ -272,6 +274,34 @@ func applyBodyForm(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	}
 	if err := req.SetBodyForm(pairs); err != nil {
 		return err
+	}
+	return nil
+}
+
+func applyBodyMultipart(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	var err error
+	args, _ := cmd.Flags().GetStringArray("data-multipart")
+
+	for _, arg := range args {
+		arg = strings.TrimSpace(arg)
+		parts := strings.Split(arg, "=")
+		key := parts[0]
+		_ = key //FIXME
+		val := parts[1]
+		if strings.HasPrefix(val, "@") {
+			// TODO:req.AddMultipartFile()
+		} else if strings.HasPrefix(val, "<<@") {
+			var valb []byte
+			file := strings.TrimPrefix(val, "@")
+			valb, err = os.ReadFile(file)
+			if err != nil {
+				return err
+			}
+			_ = valb
+			//TODO: req.AddMultipartField()
+		} else {
+			//req.AddMultipartField()
+		}
 	}
 	return nil
 }

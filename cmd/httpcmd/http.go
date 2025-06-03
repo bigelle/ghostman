@@ -32,11 +32,6 @@ var HttpCmd = &cobra.Command{
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// httpCmd.PersistentFlags().String("foo", "", "A help for foo")
 	HttpCmd.PersistentFlags().Bool("dump-request", false, "dump the whole request")
 	HttpCmd.PersistentFlags().Bool("dump-response", false, "dump the whole response")
 	HttpCmd.PersistentFlags().Bool("send-request", true, "send request")
@@ -44,7 +39,6 @@ func init() {
 	HttpCmd.PersistentFlags().Bool("sanitize-headers", true, "omits empty or malformed headers")
 	HttpCmd.PersistentFlags().Bool("sanitize-query", true, "omits empty or malformed query parameters")
 
-	// different body flags
 	HttpCmd.PersistentFlags().String(
 		"data-json",
 		"",
@@ -60,15 +54,16 @@ func init() {
 		"",
 		"sets Content-Type header to 'text/html' and adds passed string as a body",
 	)
-	HttpCmd.PersistentFlags().StringArrayP(
+	HttpCmd.PersistentFlags().StringArray(
 		"data-form",
-		"F",
 		[]string{},
 		"sets Content-Type header to 'text/html' and adds passed string as a body",
 	)
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// httpCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	HttpCmd.PersistentFlags().StringArray(
+		"data-multipart",
+		[]string{},
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
 }
 
 func preHandleHttp(cmd *cobra.Command, args []string) error {
