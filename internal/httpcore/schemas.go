@@ -3,8 +3,8 @@ package httpcore
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -67,14 +67,14 @@ type HttpRequest struct {
 }
 
 func (h HttpRequest) IsEmptyBody() bool {
-	return h.body.IsEmpty()
+	return h.body == nil
 }
 
 func (h HttpRequest) ToHTTP() (*http.Request, error) {
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
 		strings.ToUpper(h.Method),
 		h.URL,
-		h.body.Reader,
+		h.body.Reader(),
 	)
 	if err != nil {
 		return nil, err
@@ -98,8 +98,8 @@ func (h HttpRequest) ToHTTP() (*http.Request, error) {
 		req.AddCookie(&http.Cookie{Name: v.Name, Value: v.Value})
 	}
 
-	if !h.body.IsEmpty() {
-		req.Header.Add("Content-Type", h.body.ContentType)
+	if !h.IsEmptyBody() {
+		req.Header.Add("Content-Type", h.body.ContentType())
 	}
 
 	return req, nil
@@ -130,69 +130,69 @@ func (h *HttpRequest) AddCookie(key string, val string) {
 	h.Cookies = append(h.Cookies, Cookie{Name: key, Value: val})
 }
 
-func (h *HttpRequest) SetBodyJSON(b []byte) error {
-	if !IsValidJSON(b) {
-		return fmt.Errorf("not a valid JSON")
-	}
-	r := bytes.NewReader(b)
-	h.body = HttpBody{
-		ContentType: "application/json",
-		Reader: r,
-	}
-	return nil
+//func (h *HttpRequest) SetBodyHTML(b []byte) error {
+//	c := http.DetectContentType(b)
+//	if c != "text/html; charset=utf-8" {
+//		return fmt.Errorf("not a valid HTML")
+//	}
+//	r := bytes.NewReader(b)
+//	h.body = HttpBody{
+//		ContentType: c,
+//		Reader:      r,
+//	}
+//	return nil
+//}
+//
+//func (h *HttpRequest) SetBodyForm(pairs map[string][]string) error {
+//	formdata := url.Values{}
+//	for k, val := range pairs {
+//		for _, v := range val {
+//			formdata.Add(k, v)
+//		}
+//	}
+//	enc := formdata.Encode()
+//	r := bytes.NewReader([]byte(enc))
+//	h.body = HttpBody{
+//		ContentType: "application/x-www-form-urlencoded",
+//		Reader:      r,
+//	}
+//	return nil
+//}
+//
+//func (h *HttpRequest) AddBodyMultipart() error {
+//	return nil
+//}
+
+func (h *HttpRequest) SetBody(b HttpBody) {
+	h.body = b
 }
 
-func (h *HttpRequest) SetBodyPlainText(b []byte, enc string) error {
-	//TODO: move the whole logic from cmd to here
-	//it should only call for predefined funcs and not do anything itself
-	r := bytes.NewReader(b)
-	h.body = HttpBody{
-		ContentType: "text/plain; charset=" + enc,
-		Reader: r,
-	}
-	return nil
+type HttpBody interface {
+	ContentType() string
+	Reader() io.Reader
+	// TODO: Close() with cleanup if possible
 }
 
-func (h *HttpRequest) SetBodyHTML(b []byte) error {
-	c := http.DetectContentType(b)
-	if c != "text/html; charset=utf-8" {
-		return fmt.Errorf("not a valid HTML")
+type HttpBodyJSON []byte
+
+func NewHttpBodyJSON(v any) (*HttpBodyJSON, error) {
+	buf := &bytes.Buffer{}
+	enc := json.NewEncoder(buf)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
 	}
-	r := bytes.NewReader(b)
-	h.body = HttpBody{
-		ContentType: c,
-		Reader: r,
-	}
-	return nil
+	res := HttpBodyJSON(buf.Bytes())
+	return &res, nil
 }
 
-func (h *HttpRequest) SetBodyForm(pairs map[string][]string) error {
-	formdata := url.Values{}
-	for k, val := range pairs {
-		for _, v := range val {
-			formdata.Add(k, v)
-		}
-	}
-	enc := formdata.Encode()
-	r := bytes.NewReader([]byte(enc))
-	h.body = HttpBody{ 
-		ContentType: "application/x-www-form-urlencoded",
-		Reader: r,
-	}
-	return nil
+func (b HttpBodyJSON) ContentType() string {
+	return "application/json; charset=utf-8"
 }
 
-func (h *HttpRequest) AddBodyMultipart() error {
-	return nil
-}
-
-type HttpBody struct {
-	ContentType string
-	Reader      io.Reader
-}
-
-func (h HttpBody) IsEmpty() bool {
-	return h.ContentType == "" && h.Reader == nil
+func (b HttpBodyJSON) Reader() io.Reader {
+	return bytes.NewReader(b)
 }
 
 func IsValidJSON(buf []byte) bool {
@@ -203,6 +203,80 @@ func IsValidJSON(buf []byte) bool {
 		}
 	}
 	return false
+}
+
+type HttpBodyPlain string
+
+func (h HttpBodyPlain) ContentType() string {
+	return "text/plain; charset=utf-8"
+}
+
+func (h HttpBodyPlain) Reader() io.Reader {
+	return strings.NewReader(string(h))
+}
+
+type HttpBodyHtml string
+
+func (h HttpBodyHtml) ContentType() string {
+	return "text/html; charset=utf-8"
+}
+
+func (h HttpBodyHtml) Reader() io.Reader {
+	return strings.NewReader(string(h))
+}
+
+type HttpBodyForm map[string][]string
+
+func (h *HttpBodyForm) Add(key, val string) {
+	(*h)[key] = append((*h)[key], val)
+}
+
+func (h HttpBodyForm) ContentType() string {
+	return "application/x-www-form-urlencoded"
+}
+
+func (h HttpBodyForm) Reader() io.Reader {
+	q := url.Values(h)
+	enc := q.Encode()
+	return strings.NewReader(enc)
+}
+
+type HttpBodyMultipart struct {
+	Boundary string
+	Buf      *bytes.Buffer
+	Mw       *multipart.Writer
+}
+
+func NewHttpBodyMultipart() *HttpBodyMultipart {
+	buf := &bytes.Buffer{}
+	mw := multipart.NewWriter(buf)
+
+	return &HttpBodyMultipart{
+		Boundary: mw.Boundary(),
+		Buf:      buf,
+		Mw: mw,
+	}
+}
+
+func (h *HttpBodyMultipart) AddField(key, val string) error {
+	return h.Mw.WriteField(key, val)
+}
+
+func (h *HttpBodyMultipart) AddFile(key, val string, file io.Reader) error {
+	part, err := h.Mw.CreateFormFile(key, val)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(part, file)
+	return err
+}
+
+func (h HttpBodyMultipart) ContentType() string {
+	return "multipart/form-data; boundary="+h.Boundary 
+}
+
+func (h HttpBodyMultipart) Reader() io.Reader {
+	return h.Buf
 }
 
 type CookieJar map[string]Cookie

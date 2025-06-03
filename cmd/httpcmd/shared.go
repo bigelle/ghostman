@@ -144,7 +144,8 @@ func isDataFlagUsed(cmd *cobra.Command) bool {
 	return cmd.Flags().Changed("data-json") ||
 		cmd.Flags().Changed("data-plain") ||
 		cmd.Flags().Changed("data-html") ||
-		cmd.Flags().Changed("data-form")
+		cmd.Flags().Changed("data-form") ||
+		cmd.Flags().Changed("data-multipart")
 }
 
 func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
@@ -174,18 +175,13 @@ func applyBodyJSON(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		if err != nil {
 			return err
 		}
-		if err := req.SetBodyJSON(b); err != nil {
-			return err
-		}
+		body := httpcore.HttpBodyJSON(b)
+		req.SetBody(body)
 	} else {
 		// trying to treat it like a json
 		b := []byte(json)
-		if !httpcore.IsValidJSON(b) {
-			return fmt.Errorf("not a valid json")
-		}
-		if err := req.SetBodyJSON(b); err != nil {
-			return err
-		}
+		body := httpcore.HttpBodyJSON(b)
+		req.SetBody(body)
 	}
 	return nil
 }
@@ -193,35 +189,16 @@ func applyBodyJSON(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 func applyBodyPlainText(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	arg, _ := cmd.Flags().GetString("data-plain")
 	arg = strings.TrimSpace(arg)
-	txt := arg
-	enc := "utf-8"
 
-	if i := strings.Index(txt, ":"); i != -1 {
-		pref := strings.ToLower(arg[:i])
-		switch pref {
-		// TODO: other encodings
-		case "utf-8", "utf-16":
-			enc = pref
-			txt = arg[i+1:]
-		default:
-			return fmt.Errorf("not a valid encoding")
-		}
-	}
-
-	if isFile(txt) {
-		file := strings.TrimPrefix(txt, "@")
+	if isFile(arg) {
+		file := strings.TrimPrefix(arg, "@")
 		b, err := os.ReadFile(file)
 		if err != nil {
 			return err
 		}
-		if err := req.SetBodyPlainText(b, enc); err != nil {
-			return err
-		}
+		req.SetBody(httpcore.HttpBodyPlain(b))
 	} else {
-		b := []byte(txt)
-		if err := req.SetBodyPlainText(b, enc); err != nil {
-			return err
-		}
+		req.SetBody(httpcore.HttpBodyPlain(arg))
 	}
 	return nil
 }
@@ -236,73 +213,76 @@ func applyBodyHTML(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		if err != nil {
 			return err
 		}
-		if err := req.SetBodyHTML(b); err != nil {
-			return err
-		}
+		req.SetBody(httpcore.HttpBodyHtml(b))
 	} else {
 		b := []byte(arg)
-		if err := req.SetBodyHTML(b); err != nil {
-			return err
-		}
+		req.SetBody(httpcore.HttpBodyHtml(b))
 	}
 	return nil
 }
 
 func applyBodyForm(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	var err error
+	q := make(httpcore.HttpBodyForm)
 	args, _ := cmd.Flags().GetStringArray("data-form")
 
-	pairs := make(map[string][]string)
 	for _, arg := range args {
 		arg = strings.TrimSpace(arg)
-		parts := strings.Split(arg, "=")
-		if len(parts) > 2 {
+
+		key, val, ok := strings.Cut(arg, "=")
+		if !ok {
 			return fmt.Errorf("wrong form syntax")
 		}
-		key := parts[0]
-		val := parts[1]
-		if isFile(val) {
-			var valb []byte
-			file := strings.TrimPrefix(val, "@")
-			valb, err = os.ReadFile(file)
+
+		if strings.HasPrefix(val, "@") {
+			path := strings.TrimPrefix(val, "@")
+			b, err := os.ReadFile(path)
 			if err != nil {
 				return err
 			}
-			val = string(valb)
+			val = string(b)
 		}
-		pairs[key] = append(pairs[key], val)
+		q.Add(key, val)
 	}
-	if err := req.SetBodyForm(pairs); err != nil {
-		return err
-	}
+	req.SetBody(q)
 	return nil
 }
 
 func applyBodyMultipart(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	var err error
 	args, _ := cmd.Flags().GetStringArray("data-multipart")
+	body := httpcore.NewHttpBodyMultipart()
 
 	for _, arg := range args {
 		arg = strings.TrimSpace(arg)
-		parts := strings.Split(arg, "=")
-		key := parts[0]
-		_ = key //FIXME
-		val := parts[1]
+		key, val, ok := strings.Cut(arg, "=")
+		if !ok {
+			return fmt.Errorf("wrong form syntax")
+		}
+
 		if strings.HasPrefix(val, "@") {
-			// TODO:req.AddMultipartFile()
-		} else if strings.HasPrefix(val, "<<@") {
-			var valb []byte
-			file := strings.TrimPrefix(val, "@")
-			valb, err = os.ReadFile(file)
+			path := strings.TrimPrefix(val, "@")
+			r, err := os.Open(path)
 			if err != nil {
 				return err
 			}
-			_ = valb
-			//TODO: req.AddMultipartField()
+			if err := body.AddFile(key, r.Name(), r); err != nil {
+				return err
+			}
+		} else if strings.HasPrefix(val, "<@") {
+			path := strings.TrimPrefix(val, "<@")
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if err := body.AddField(key, string(b)); err != nil {
+				return err
+			}
 		} else {
-			//req.AddMultipartField()
+			if err := body.AddField(key, val); err != nil {
+				return err
+			}
 		}
 	}
+	req.SetBody(body)
 	return nil
 }
 
