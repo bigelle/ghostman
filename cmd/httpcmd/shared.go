@@ -145,7 +145,9 @@ func isDataFlagUsed(cmd *cobra.Command) bool {
 		cmd.Flags().Changed("data-plain") ||
 		cmd.Flags().Changed("data-html") ||
 		cmd.Flags().Changed("data-form") ||
-		cmd.Flags().Changed("data-multipart")
+		cmd.Flags().Changed("data-multipart") ||
+		cmd.Flags().Changed("data-stream") || 
+		cmd.Flags().Changed("data-xml")
 }
 
 func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
@@ -160,6 +162,10 @@ func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		return applyBodyForm(cmd, req)
 	case cmd.Flags().Changed("data-multipart"):
 		return applyBodyMultipart(cmd, req)
+	case cmd.Flags().Changed("data-stream"):
+		return applyBodyStream(cmd, req)
+	case cmd.Flags().Changed("data-xml"):
+		return applyBodyXML(cmd, req)
 	default:
 		return nil
 	}
@@ -286,6 +292,36 @@ func applyBodyMultipart(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	return nil
 }
 
+func applyBodyStream(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-stream")
+	arg = strings.TrimSpace(arg)
+	
+	b, err := os.ReadFile(strings.TrimSpace(arg))
+	if err != nil {
+		return err
+	}
+	req.SetBody(httpcore.HttpBodyOctetStream(b))
+	return nil
+}
+
+func applyBodyXML(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-xml")
+	arg = strings.TrimSpace(arg)
+	if isFile(arg) {
+		path := strings.TrimPrefix(arg, "@")
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		body := httpcore.HttpBodyXML(b)
+		req.SetBody(body)
+	} else {
+		b := []byte(arg)
+		body := httpcore.HttpBodyXML(b)
+		req.SetBody(body)
+	}
+	return nil
+}
 func isFile(str string) bool {
 	return strings.HasPrefix(str, "@")
 }

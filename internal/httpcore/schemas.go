@@ -254,7 +254,7 @@ func NewHttpBodyMultipart() *HttpBodyMultipart {
 	return &HttpBodyMultipart{
 		Boundary: mw.Boundary(),
 		Buf:      buf,
-		Mw: mw,
+		Mw:       mw,
 	}
 }
 
@@ -272,11 +272,31 @@ func (h *HttpBodyMultipart) AddFile(key, val string, file io.Reader) error {
 }
 
 func (h HttpBodyMultipart) ContentType() string {
-	return "multipart/form-data; boundary="+h.Boundary 
+	return "multipart/form-data; boundary=" + h.Boundary
 }
 
 func (h HttpBodyMultipart) Reader() io.Reader {
 	return h.Buf
+}
+
+type HttpBodyOctetStream []byte
+
+func (h HttpBodyOctetStream) ContentType() string {
+	return "application/octet-stream"
+}
+
+type HttpBodyXML []byte
+
+func (h HttpBodyXML) ContentType() string {
+	return "application/xml; charset=utf-8"
+}
+
+func (h HttpBodyXML) Reader() io.Reader {
+	return bytes.NewReader(h)
+}
+
+func (h HttpBodyOctetStream) Reader() io.Reader {
+	return bytes.NewReader(h)
 }
 
 type CookieJar map[string]Cookie

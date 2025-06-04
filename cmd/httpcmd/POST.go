@@ -25,15 +25,6 @@ var postCmd = &cobra.Command{
 func init() {
 	HttpCmd.AddCommand(postCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// POSTCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// POSTCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	postCmd.Flags().StringArrayP(
 		"header",
 		"H",
@@ -51,13 +42,6 @@ func init() {
 		"C",
 		[]string{},
 		"add a cookie to the request in format CookieName:value.",
-	)
-
-	// different body flags
-	postCmd.Flags().String(
-		"data-json",
-		"",
-		"sets Content-Type header to 'application/json' and adds passed string as a body",
 	)
 }
 
