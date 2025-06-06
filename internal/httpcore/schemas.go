@@ -3,6 +3,7 @@ package httpcore
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -70,11 +71,18 @@ func (h HttpRequest) IsEmptyBody() bool {
 	return h.body == nil
 }
 
+func (h HttpRequest) Body() io.Reader {
+	if h.IsEmptyBody() {
+		return nil
+	}
+	return h.body.Reader()
+}
+
 func (h HttpRequest) ToHTTP() (*http.Request, error) {
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
 		strings.ToUpper(h.Method),
 		h.URL,
-		h.body.Reader(),
+		h.Body(),
 	)
 	if err != nil {
 		return nil, err
@@ -130,39 +138,6 @@ func (h *HttpRequest) AddCookie(key string, val string) {
 	h.Cookies = append(h.Cookies, Cookie{Name: key, Value: val})
 }
 
-//func (h *HttpRequest) SetBodyHTML(b []byte) error {
-//	c := http.DetectContentType(b)
-//	if c != "text/html; charset=utf-8" {
-//		return fmt.Errorf("not a valid HTML")
-//	}
-//	r := bytes.NewReader(b)
-//	h.body = HttpBody{
-//		ContentType: c,
-//		Reader:      r,
-//	}
-//	return nil
-//}
-//
-//func (h *HttpRequest) SetBodyForm(pairs map[string][]string) error {
-//	formdata := url.Values{}
-//	for k, val := range pairs {
-//		for _, v := range val {
-//			formdata.Add(k, v)
-//		}
-//	}
-//	enc := formdata.Encode()
-//	r := bytes.NewReader([]byte(enc))
-//	h.body = HttpBody{
-//		ContentType: "application/x-www-form-urlencoded",
-//		Reader:      r,
-//	}
-//	return nil
-//}
-//
-//func (h *HttpRequest) AddBodyMultipart() error {
-//	return nil
-//}
-
 func (h *HttpRequest) SetBody(b HttpBody) {
 	h.body = b
 }
@@ -171,6 +146,10 @@ type HttpBody interface {
 	ContentType() string
 	Reader() io.Reader
 	// TODO: Close() with cleanup if possible
+}
+
+func genericReader(b []byte) io.Reader {
+	return bytes.NewReader(b)
 }
 
 type HttpBodyJSON []byte
@@ -192,7 +171,7 @@ func (b HttpBodyJSON) ContentType() string {
 }
 
 func (b HttpBodyJSON) Reader() io.Reader {
-	return bytes.NewReader(b)
+	return genericReader(b)
 }
 
 func IsValidJSON(buf []byte) bool {
@@ -212,7 +191,7 @@ func (h HttpBodyPlain) ContentType() string {
 }
 
 func (h HttpBodyPlain) Reader() io.Reader {
-	return strings.NewReader(string(h))
+	return genericReader([]byte(h))
 }
 
 type HttpBodyHtml string
@@ -222,7 +201,7 @@ func (h HttpBodyHtml) ContentType() string {
 }
 
 func (h HttpBodyHtml) Reader() io.Reader {
-	return strings.NewReader(string(h))
+	return genericReader([]byte(h))
 }
 
 type HttpBodyForm map[string][]string
@@ -285,6 +264,10 @@ func (h HttpBodyOctetStream) ContentType() string {
 	return "application/octet-stream"
 }
 
+func (h HttpBodyOctetStream) Reader() io.Reader {
+	return genericReader(h)
+}
+
 type HttpBodyXML []byte
 
 func (h HttpBodyXML) ContentType() string {
@@ -292,11 +275,86 @@ func (h HttpBodyXML) ContentType() string {
 }
 
 func (h HttpBodyXML) Reader() io.Reader {
-	return bytes.NewReader(h)
+	return genericReader(h)
 }
 
-func (h HttpBodyOctetStream) Reader() io.Reader {
-	return bytes.NewReader(h)
+type HttpBodyCSS []byte
+
+func (h HttpBodyCSS) ContentType() string {
+	return "text/css; charset=utf-8"
+}
+
+func (h HttpBodyCSS) Reader() io.Reader {
+	return genericReader(h)
+}
+
+type HttpBodyJavascript []byte
+
+func (h HttpBodyJavascript) ContentType() string {
+	return "text/javascript; charset=utf-8"
+}
+
+func (h HttpBodyJavascript) Reader() io.Reader {
+	return genericReader(h)
+}
+
+type HttpBodyPicture struct {
+	Type string // webp, png, jpeg, gif
+	B    []byte
+}
+
+func (h HttpBodyPicture) ContentType() string {
+	return fmt.Sprintf("image/%s", h.Type)
+}
+
+func (h HttpBodyPicture) Reader() io.Reader {
+	return genericReader(h.B)
+}
+
+type HttpBodyAudio struct {
+	Type string // ogg, mpeg
+	B    []byte
+}
+
+func (h HttpBodyAudio) ContentType() string {
+	return fmt.Sprintf("audio/%s", h.Type)
+}
+
+func (h HttpBodyAudio) Reader() io.Reader {
+	return genericReader(h.B)
+}
+
+type HttpBodyVideo struct {
+	Type string // mp4, webm
+	B    []byte
+}
+
+func (h HttpBodyVideo) ContentType() string {
+	return fmt.Sprintf("video/%s", h.Type)
+}
+
+func (h HttpBodyVideo) Reader() io.Reader {
+	return genericReader(h.B)
+}
+
+type HttpBodyPDF []byte 
+
+func (h HttpBodyPDF) ContentType() string {
+	return "application/pdf"
+}
+
+func (h HttpBodyPDF) Reader() io.Reader {
+	return genericReader(h)
+}
+
+type HttpBodyZip []byte 
+
+func (h HttpBodyZip) ContentType() string {
+	return "application/zip"
+}
+
+func (h HttpBodyZip) Reader() io.Reader {
+	return genericReader(h)
 }
 
 type CookieJar map[string]Cookie

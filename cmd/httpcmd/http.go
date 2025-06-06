@@ -74,6 +74,16 @@ func init() {
 		"",
 		"sets Content-Type header to 'text/html' and adds passed string as a body",
 	)
+	HttpCmd.PersistentFlags().String(
+		"data-css",
+		"",
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
+	HttpCmd.PersistentFlags().String(
+		"data-script",
+		"",
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
 }
 
 func preHandleHttp(cmd *cobra.Command, args []string) error {

@@ -146,8 +146,10 @@ func isDataFlagUsed(cmd *cobra.Command) bool {
 		cmd.Flags().Changed("data-html") ||
 		cmd.Flags().Changed("data-form") ||
 		cmd.Flags().Changed("data-multipart") ||
-		cmd.Flags().Changed("data-stream") || 
-		cmd.Flags().Changed("data-xml")
+		cmd.Flags().Changed("data-stream") ||
+		cmd.Flags().Changed("data-xml") ||
+		cmd.Flags().Changed("data-css") ||
+		cmd.Flags().Changed("data-script")
 }
 
 func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
@@ -166,8 +168,12 @@ func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		return applyBodyStream(cmd, req)
 	case cmd.Flags().Changed("data-xml"):
 		return applyBodyXML(cmd, req)
+	case cmd.Flags().Changed("data-css"):
+		return applyBodyCSS(cmd, req)
+	case cmd.Flags().Changed("data-script"):
+		return applyBodyJavascript(cmd, req)
 	default:
-		return nil
+		return fmt.Errorf("you messed up flags")
 	}
 }
 
@@ -295,7 +301,7 @@ func applyBodyMultipart(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 func applyBodyStream(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	arg, _ := cmd.Flags().GetString("data-stream")
 	arg = strings.TrimSpace(arg)
-	
+
 	b, err := os.ReadFile(strings.TrimSpace(arg))
 	if err != nil {
 		return err
@@ -322,6 +328,45 @@ func applyBodyXML(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	}
 	return nil
 }
+
+func applyBodyCSS(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-css")
+	arg = strings.TrimSpace(arg)
+	if isFile(arg) {
+		path := strings.TrimPrefix(arg, "@")
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		body := httpcore.HttpBodyCSS(b)
+		req.SetBody(body)
+	} else {
+		b := []byte(arg)
+		body := httpcore.HttpBodyCSS(b)
+		req.SetBody(body)
+	}
+	return nil
+}
+
+func applyBodyJavascript(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-script")
+	arg = strings.TrimSpace(arg)
+	if isFile(arg) {
+		path := strings.TrimPrefix(arg, "@")
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		body := httpcore.HttpBodyJavascript(b)
+		req.SetBody(body)
+	} else {
+		b := []byte(arg)
+		body := httpcore.HttpBodyJavascript(b)
+		req.SetBody(body)
+	}
+	return nil
+}
+
 func isFile(str string) bool {
 	return strings.HasPrefix(str, "@")
 }
