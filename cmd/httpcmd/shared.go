@@ -149,7 +149,12 @@ func isDataFlagUsed(cmd *cobra.Command) bool {
 		cmd.Flags().Changed("data-stream") ||
 		cmd.Flags().Changed("data-xml") ||
 		cmd.Flags().Changed("data-css") ||
-		cmd.Flags().Changed("data-script")
+		cmd.Flags().Changed("data-script") ||
+		cmd.Flags().Changed("data-image") ||
+		cmd.Flags().Changed("data-audio") ||
+		cmd.Flags().Changed("data-video") ||
+		cmd.Flags().Changed("data-zip") ||
+		cmd.Flags().Changed("data-pdf")
 }
 
 func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
@@ -171,6 +176,16 @@ func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	case cmd.Flags().Changed("data-css"):
 		return applyBodyCSS(cmd, req)
 	case cmd.Flags().Changed("data-script"):
+		return applyBodyJavascript(cmd, req)
+	case cmd.Flags().Changed("data-image"):
+		return applyBodyImage(cmd, req)
+	case cmd.Flags().Changed("data-audio"):
+		return applyBodyJavascript(cmd, req)
+	case cmd.Flags().Changed("data-video"):
+		return applyBodyJavascript(cmd, req)
+	case cmd.Flags().Changed("data-zip"):
+		return applyBodyJavascript(cmd, req)
+	case cmd.Flags().Changed("data-pdf"):
 		return applyBodyJavascript(cmd, req)
 	default:
 		return fmt.Errorf("you messed up flags")
@@ -364,6 +379,54 @@ func applyBodyJavascript(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 		body := httpcore.HttpBodyJavascript(b)
 		req.SetBody(body)
 	}
+	return nil
+}
+
+func applyBodyImage(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-image")
+	arg = strings.TrimSpace(arg)
+
+	b, err := os.ReadFile(arg)
+	if err != nil {
+		return err
+	}
+	body, err := httpcore.NewHttpBodyImage(b)
+	if err != nil {
+		return err
+	}
+	req.SetBody(body)
+	return nil
+}
+
+func applyBodyAudio(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-audio")
+	arg = strings.TrimSpace(arg)
+
+	b, err := os.ReadFile(arg)
+	if err != nil {
+		return err
+	}
+	body, err := httpcore.NewHttpBodyAudio(b)
+	if err != nil {
+		return err
+	}
+	req.SetBody(body)
+	return nil
+}
+
+func applyBodyVideo(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	arg, _ := cmd.Flags().GetString("data-video")
+	arg = strings.TrimSpace(arg)
+
+	b, err := os.ReadFile(arg)
+	if err != nil {
+		return err
+	}
+	body, err := httpcore.NewHttpBodyVideo(b)
+	if err != nil {
+		return err
+	}
+	req.SetBody(body)
 	return nil
 }
 

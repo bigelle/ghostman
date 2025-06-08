@@ -298,26 +298,48 @@ func (h HttpBodyJavascript) Reader() io.Reader {
 	return genericReader(h)
 }
 
-type HttpBodyPicture struct {
-	Type string // webp, png, jpeg, gif
-	B    []byte
+type HttpBodyImage struct {
+	Ct string
+	B  []byte
 }
 
-func (h HttpBodyPicture) ContentType() string {
-	return fmt.Sprintf("image/%s", h.Type)
+func NewHttpBodyImage(b []byte) (*HttpBodyImage, error) {
+	ct := http.DetectContentType(b)
+	if !strings.HasPrefix(ct, "image") {
+		return nil, fmt.Errorf("not an image")
+	}
+	return &HttpBodyImage{
+		Ct: ct,
+		B:  b,
+	}, nil
 }
 
-func (h HttpBodyPicture) Reader() io.Reader {
+func (h HttpBodyImage) ContentType() string {
+	return h.Ct
+}
+
+func (h HttpBodyImage) Reader() io.Reader {
 	return genericReader(h.B)
 }
 
 type HttpBodyAudio struct {
-	Type string // ogg, mpeg
+	Ct string
 	B    []byte
 }
 
+func NewHttpBodyAudio(b []byte) (*HttpBodyAudio, error) {
+	ct := http.DetectContentType(b)
+	if !strings.HasPrefix(ct, "audio") {
+		return nil, fmt.Errorf("not an audio")
+	}
+	return &HttpBodyAudio{
+		Ct: ct,
+		B:  b,
+	}, nil
+}
+
 func (h HttpBodyAudio) ContentType() string {
-	return fmt.Sprintf("audio/%s", h.Type)
+	return h.Ct
 }
 
 func (h HttpBodyAudio) Reader() io.Reader {
@@ -325,19 +347,30 @@ func (h HttpBodyAudio) Reader() io.Reader {
 }
 
 type HttpBodyVideo struct {
-	Type string // mp4, webm
+	Ct string
 	B    []byte
 }
 
+func NewHttpBodyVideo(b []byte) (*HttpBodyVideo, error) {
+	ct := http.DetectContentType(b)
+	if !strings.HasPrefix(ct, "video") {
+		return nil, fmt.Errorf("not a video")
+	}
+	return &HttpBodyVideo{
+		Ct: ct,
+		B:  b,
+	}, nil
+}
+
 func (h HttpBodyVideo) ContentType() string {
-	return fmt.Sprintf("video/%s", h.Type)
+	return h.Ct
 }
 
 func (h HttpBodyVideo) Reader() io.Reader {
 	return genericReader(h.B)
 }
 
-type HttpBodyPDF []byte 
+type HttpBodyPDF []byte
 
 func (h HttpBodyPDF) ContentType() string {
 	return "application/pdf"
@@ -347,7 +380,7 @@ func (h HttpBodyPDF) Reader() io.Reader {
 	return genericReader(h)
 }
 
-type HttpBodyZip []byte 
+type HttpBodyZip []byte
 
 func (h HttpBodyZip) ContentType() string {
 	return "application/zip"
