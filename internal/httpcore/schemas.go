@@ -3,10 +3,16 @@ package httpcore
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/gabriel-vasile/mimetype"
 )
 
 func NewHttpRequest(urlArg, method string) (*HttpRequest, error) {
@@ -147,10 +153,10 @@ type HttpBody interface {
 
 type HttpBodyGeneric struct {
 	ct string
-	r io.Reader
+	r  io.Reader
 }
 
-func NewHttpBodyGeneric(ct string, b []byte) (*HttpBodyGeneric) {
+func NewHttpBodyGeneric(ct string, b []byte) *HttpBodyGeneric {
 	buf := bytes.NewReader(b)
 	return &HttpBodyGeneric{ct: ct, r: buf}
 }
@@ -161,6 +167,75 @@ func (h HttpBodyGeneric) ContentType() string {
 
 func (h HttpBodyGeneric) Reader() io.Reader {
 	return h.r
+}
+
+type HttpBodyForm map[string][]string
+
+func (h *HttpBodyForm) Add(key, val string) {
+	if h == nil {
+		return // not panicing
+	}
+	(*h)[key] = append((*h)[key], val)
+}
+
+func (h HttpBodyForm) ContentType() string {
+	return "application/x-www-url-formencoded"
+}
+
+func (h HttpBodyForm) Reader() io.Reader {
+	q := url.Values{}
+	for k, vals := range h {
+		for _, v := range vals {
+			q.Add(k, v)
+		}
+	}
+	return strings.NewReader(q.Encode())
+}
+
+type HttpBodyMultipart struct {
+	Boundary string
+	Mw       *multipart.Writer
+	Buf      *bytes.Buffer
+}
+
+func NewHttpBodyMultipart() *HttpBodyMultipart {
+	buf := bytes.NewBuffer([]byte{})
+	mw := multipart.NewWriter(buf)
+	return &HttpBodyMultipart{
+		Boundary: mw.Boundary(),
+		Mw:       mw,
+		Buf:      buf,
+	}
+}
+
+func (h *HttpBodyMultipart) AddField(key, val string) error {
+	return h.Mw.WriteField(key, val)
+}
+
+func (h *HttpBodyMultipart) AddFile(key, val string, file []byte) error {
+	r := bytes.NewReader(file)
+	header := textproto.MIMEHeader{
+		"Content-Disposition": []string{
+			"form-data", fmt.Sprintf("name=\"%s\"", key), fmt.Sprintf("filename=\"%s\"", val),
+		},
+		"Content-Type": []string{
+			mimetype.Detect(file).String(),
+		},
+	}
+	part, err := h.Mw.CreatePart(header)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(part, r)
+	return err
+}
+
+func (h HttpBodyMultipart) ContentType() string {
+	return "multipart/form-data; boundary=" + h.Boundary
+}
+
+func (h HttpBodyMultipart) Reader() io.Reader {
+	return h.Buf
 }
 
 type CookieJar map[string]Cookie

@@ -44,7 +44,16 @@ func init() {
 		"",
 		"sets Content-Type header to 'text/html' and adds passed string as a body",
 	)
-
+	HttpCmd.PersistentFlags().StringArray(
+		"form",
+		[]string{},
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
+	HttpCmd.PersistentFlags().StringArray(
+		"part",
+		[]string{},
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
 }
 
 func preHandleHttp(cmd *cobra.Command, args []string) error {
@@ -68,7 +77,7 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 	applyRunTimeFlags(cmd, req)
 
 	if cmd.Flags().Changed("data") {
-		if err := applyBody(cmd, req); err != nil {
+		if err := AttachBody(cmd, req); err != nil {
 			return err
 		}
 	}

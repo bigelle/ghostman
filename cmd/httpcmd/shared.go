@@ -45,9 +45,8 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if cmd.Flags().Changed("data") {
-		fmt.Println("trying")
-		if err := applyBody(cmd, req); err != nil {
+	if HasAttachments(cmd) {
+		if err := AttachBody(cmd, req); err != nil {
 			return err
 		}
 	}
@@ -142,13 +141,26 @@ func applyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 	return &req, nil
 }
 
-func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+func AttachBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	switch {
+	case cmd.Flags().Changed("data"):
+		return AttachBodyData(cmd, req)
+	case cmd.Flags().Changed("form"):
+		return AttachBodyForm(cmd, req)
+	case cmd.Flags().Changed("part"):
+	return AttachBodyMultipart(cmd, req)
+	default:
+		return fmt.Errorf("you messed up flags")
+	}
+}
+
+func AttachBodyData(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	arg, _ := cmd.Flags().GetString("data")
 	arg = strings.TrimSpace(arg)
 
 	if strings.HasPrefix(arg, "@") {
 		path := strings.TrimPrefix(arg, "@")
-		b , err := os.ReadFile(path)
+		b, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
@@ -158,11 +170,78 @@ func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	} else {
 		b := []byte(arg)
 		ct := mimetype.Detect(b)
-		if ct == nil {
-			return fmt.Errorf("fail") // NOTE: can it fail?
-		}
 		body := httpcore.NewHttpBodyGeneric(ct.String(), b)
 		req.SetBody(body)
 	}
 	return nil
+}
+
+func AttachBodyForm(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	args, _ := cmd.Flags().GetStringArray("form")
+	body := httpcore.HttpBodyForm{}
+	
+	for _, arg := range args {
+		arg = strings.TrimSpace(arg)
+
+		key, val, ok := strings.Cut(arg, "=")
+		if !ok {
+			return fmt.Errorf("wrong form syntax")
+		}
+		if strings.HasPrefix(val,"@") {
+			path := strings.TrimPrefix(val, "@")
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			val = string(b)
+		}
+		body.Add(key, val)
+	}
+	req.SetBody(body)
+	return nil
+}
+
+func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+	args, _ := cmd.Flags().GetStringArray("part")
+	body := httpcore.NewHttpBodyMultipart()
+
+	for _, arg := range args {
+		arg = strings.TrimSpace(arg)
+
+		key, val, ok := strings.Cut(arg, "=")
+		if !ok {
+			return fmt.Errorf("wrong part syntax")
+		}
+		if strings.HasPrefix(val, "@") {
+			path := strings.TrimPrefix(val, "@")
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if err := body.AddFile(key, val, b); err != nil {
+				return err
+			}
+		} else  if strings.HasPrefix(val, "<@") {
+			path := strings.TrimPrefix(val, "<@")
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if err := body.AddField(key, string(b)); err != nil {
+				return err
+			}
+		} else {
+			if err := body.AddField(key, val); err != nil {
+				return err
+			}
+		}
+	}
+	req.SetBody(body)
+	return nil
+}
+
+func HasAttachments(cmd *cobra.Command) bool {
+	return cmd.Flags().Changed("data") ||
+		cmd.Flags().Changed("form") ||
+		cmd.Flags().Changed("part")
 }
