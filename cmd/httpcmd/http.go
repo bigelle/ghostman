@@ -40,75 +40,11 @@ func init() {
 	HttpCmd.PersistentFlags().Bool("sanitize-query", true, "omits empty or malformed query parameters")
 
 	HttpCmd.PersistentFlags().String(
-		"data-json",
-		"",
-		"sets Content-Type header to 'application/json' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-plain",
-		"",
-		"sets Content-Type header to 'text/plain' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-html",
+		"data",
 		"",
 		"sets Content-Type header to 'text/html' and adds passed string as a body",
 	)
-	HttpCmd.PersistentFlags().StringArray(
-		"data-form",
-		[]string{},
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().StringArray(
-		"data-multipart",
-		[]string{},
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-stream",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-xml",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-css",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-script",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-image",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-audio",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-video",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-zip",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
-	HttpCmd.PersistentFlags().String(
-		"data-pdf",
-		"",
-		"sets Content-Type header to 'text/html' and adds passed string as a body",
-	)
+
 }
 
 func preHandleHttp(cmd *cobra.Command, args []string) error {
@@ -130,7 +66,8 @@ func preHandleHttp(cmd *cobra.Command, args []string) error {
 	shared.BytesBufPool.Put(buf)
 
 	applyRunTimeFlags(cmd, req)
-	if isDataFlagUsed(cmd) {
+
+	if cmd.Flags().Changed("data") {
 		if err := applyBody(cmd, req); err != nil {
 			return err
 		}

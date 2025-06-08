@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bigelle/ghostman/internal/httpcore"
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +45,8 @@ func parseCommand(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if isDataFlagUsed(cmd) {
+	if cmd.Flags().Changed("data") {
+		fmt.Println("trying")
 		if err := applyBody(cmd, req); err != nil {
 			return err
 		}
@@ -140,296 +142,27 @@ func applyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 	return &req, nil
 }
 
-func isDataFlagUsed(cmd *cobra.Command) bool {
-	return cmd.Flags().Changed("data-json") ||
-		cmd.Flags().Changed("data-plain") ||
-		cmd.Flags().Changed("data-html") ||
-		cmd.Flags().Changed("data-form") ||
-		cmd.Flags().Changed("data-multipart") ||
-		cmd.Flags().Changed("data-stream") ||
-		cmd.Flags().Changed("data-xml") ||
-		cmd.Flags().Changed("data-css") ||
-		cmd.Flags().Changed("data-script") ||
-		cmd.Flags().Changed("data-image") ||
-		cmd.Flags().Changed("data-audio") ||
-		cmd.Flags().Changed("data-video") ||
-		cmd.Flags().Changed("data-zip") ||
-		cmd.Flags().Changed("data-pdf")
-}
-
 func applyBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	switch {
-	case cmd.Flags().Changed("data-json"):
-		return applyBodyJSON(cmd, req)
-	case cmd.Flags().Changed("data-plain"):
-		return applyBodyPlainText(cmd, req)
-	case cmd.Flags().Changed("data-html"):
-		return applyBodyHTML(cmd, req)
-	case cmd.Flags().Changed("data-form"):
-		return applyBodyForm(cmd, req)
-	case cmd.Flags().Changed("data-multipart"):
-		return applyBodyMultipart(cmd, req)
-	case cmd.Flags().Changed("data-stream"):
-		return applyBodyStream(cmd, req)
-	case cmd.Flags().Changed("data-xml"):
-		return applyBodyXML(cmd, req)
-	case cmd.Flags().Changed("data-css"):
-		return applyBodyCSS(cmd, req)
-	case cmd.Flags().Changed("data-script"):
-		return applyBodyJavascript(cmd, req)
-	case cmd.Flags().Changed("data-image"):
-		return applyBodyImage(cmd, req)
-	case cmd.Flags().Changed("data-audio"):
-		return applyBodyJavascript(cmd, req)
-	case cmd.Flags().Changed("data-video"):
-		return applyBodyJavascript(cmd, req)
-	case cmd.Flags().Changed("data-zip"):
-		return applyBodyJavascript(cmd, req)
-	case cmd.Flags().Changed("data-pdf"):
-		return applyBodyJavascript(cmd, req)
-	default:
-		return fmt.Errorf("you messed up flags")
-	}
-}
-
-func applyBodyJSON(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	json, _ := cmd.Flags().GetString("data-json")
-	json = strings.TrimSpace(json)
-	if isFile(json) {
-		// treating like a file
-		path := strings.TrimPrefix(json, "@")
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		body := httpcore.HttpBodyJSON(b)
-		req.SetBody(body)
-	} else {
-		// trying to treat it like a json
-		b := []byte(json)
-		body := httpcore.HttpBodyJSON(b)
-		req.SetBody(body)
-	}
-	return nil
-}
-
-func applyBodyPlainText(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-plain")
+	arg, _ := cmd.Flags().GetString("data")
 	arg = strings.TrimSpace(arg)
 
-	if isFile(arg) {
-		file := strings.TrimPrefix(arg, "@")
-		b, err := os.ReadFile(file)
-		if err != nil {
-			return err
-		}
-		req.SetBody(httpcore.HttpBodyPlain(b))
-	} else {
-		req.SetBody(httpcore.HttpBodyPlain(arg))
-	}
-	return nil
-}
-
-func applyBodyHTML(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-html")
-	arg = strings.TrimSpace(arg)
-
-	if isFile(arg) {
-		file := strings.TrimPrefix(arg, "@")
-		b, err := os.ReadFile(file)
-		if err != nil {
-			return err
-		}
-		req.SetBody(httpcore.HttpBodyHtml(b))
-	} else {
-		b := []byte(arg)
-		req.SetBody(httpcore.HttpBodyHtml(b))
-	}
-	return nil
-}
-
-func applyBodyForm(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	q := make(httpcore.HttpBodyForm)
-	args, _ := cmd.Flags().GetStringArray("data-form")
-
-	for _, arg := range args {
-		arg = strings.TrimSpace(arg)
-
-		key, val, ok := strings.Cut(arg, "=")
-		if !ok {
-			return fmt.Errorf("wrong form syntax")
-		}
-
-		if strings.HasPrefix(val, "@") {
-			path := strings.TrimPrefix(val, "@")
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			val = string(b)
-		}
-		q.Add(key, val)
-	}
-	req.SetBody(q)
-	return nil
-}
-
-func applyBodyMultipart(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	args, _ := cmd.Flags().GetStringArray("data-multipart")
-	body := httpcore.NewHttpBodyMultipart()
-
-	for _, arg := range args {
-		arg = strings.TrimSpace(arg)
-		key, val, ok := strings.Cut(arg, "=")
-		if !ok {
-			return fmt.Errorf("wrong form syntax")
-		}
-
-		if strings.HasPrefix(val, "@") {
-			path := strings.TrimPrefix(val, "@")
-			r, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			if err := body.AddFile(key, r.Name(), r); err != nil {
-				return err
-			}
-		} else if strings.HasPrefix(val, "<@") {
-			path := strings.TrimPrefix(val, "<@")
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if err := body.AddField(key, string(b)); err != nil {
-				return err
-			}
-		} else {
-			if err := body.AddField(key, val); err != nil {
-				return err
-			}
-		}
-	}
-	req.SetBody(body)
-	return nil
-}
-
-func applyBodyStream(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-stream")
-	arg = strings.TrimSpace(arg)
-
-	b, err := os.ReadFile(strings.TrimSpace(arg))
-	if err != nil {
-		return err
-	}
-	req.SetBody(httpcore.HttpBodyOctetStream(b))
-	return nil
-}
-
-func applyBodyXML(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-xml")
-	arg = strings.TrimSpace(arg)
-	if isFile(arg) {
+	if strings.HasPrefix(arg, "@") {
 		path := strings.TrimPrefix(arg, "@")
-		b, err := os.ReadFile(path)
+		b , err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		body := httpcore.HttpBodyXML(b)
+		ct := mimetype.Detect(b)
+		body := httpcore.NewHttpBodyGeneric(ct.String(), b)
 		req.SetBody(body)
 	} else {
 		b := []byte(arg)
-		body := httpcore.HttpBodyXML(b)
-		req.SetBody(body)
-	}
-	return nil
-}
-
-func applyBodyCSS(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-css")
-	arg = strings.TrimSpace(arg)
-	if isFile(arg) {
-		path := strings.TrimPrefix(arg, "@")
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return err
+		ct := mimetype.Detect(b)
+		if ct == nil {
+			return fmt.Errorf("fail") // NOTE: can it fail?
 		}
-		body := httpcore.HttpBodyCSS(b)
-		req.SetBody(body)
-	} else {
-		b := []byte(arg)
-		body := httpcore.HttpBodyCSS(b)
+		body := httpcore.NewHttpBodyGeneric(ct.String(), b)
 		req.SetBody(body)
 	}
 	return nil
-}
-
-func applyBodyJavascript(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-script")
-	arg = strings.TrimSpace(arg)
-	if isFile(arg) {
-		path := strings.TrimPrefix(arg, "@")
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		body := httpcore.HttpBodyJavascript(b)
-		req.SetBody(body)
-	} else {
-		b := []byte(arg)
-		body := httpcore.HttpBodyJavascript(b)
-		req.SetBody(body)
-	}
-	return nil
-}
-
-func applyBodyImage(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-image")
-	arg = strings.TrimSpace(arg)
-
-	b, err := os.ReadFile(arg)
-	if err != nil {
-		return err
-	}
-	body, err := httpcore.NewHttpBodyImage(b)
-	if err != nil {
-		return err
-	}
-	req.SetBody(body)
-	return nil
-}
-
-func applyBodyAudio(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-audio")
-	arg = strings.TrimSpace(arg)
-
-	b, err := os.ReadFile(arg)
-	if err != nil {
-		return err
-	}
-	body, err := httpcore.NewHttpBodyAudio(b)
-	if err != nil {
-		return err
-	}
-	req.SetBody(body)
-	return nil
-}
-
-func applyBodyVideo(cmd *cobra.Command, req *httpcore.HttpRequest) error {
-	arg, _ := cmd.Flags().GetString("data-video")
-	arg = strings.TrimSpace(arg)
-
-	b, err := os.ReadFile(arg)
-	if err != nil {
-		return err
-	}
-	body, err := httpcore.NewHttpBodyVideo(b)
-	if err != nil {
-		return err
-	}
-	req.SetBody(body)
-	return nil
-}
-
-func isFile(str string) bool {
-	return strings.HasPrefix(str, "@")
 }

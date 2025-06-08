@@ -3,11 +3,8 @@ package httpcore
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -148,246 +145,22 @@ type HttpBody interface {
 	// TODO: Close() with cleanup if possible
 }
 
-func genericReader(b []byte) io.Reader {
-	return bytes.NewReader(b)
+type HttpBodyGeneric struct {
+	ct string
+	r io.Reader
 }
 
-type HttpBodyJSON []byte
-
-func NewHttpBodyJSON(v any) (*HttpBodyJSON, error) {
-	buf := &bytes.Buffer{}
-	enc := json.NewEncoder(buf)
-	enc.SetIndent("", "  ")
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	res := HttpBodyJSON(buf.Bytes())
-	return &res, nil
+func NewHttpBodyGeneric(ct string, b []byte) (*HttpBodyGeneric) {
+	buf := bytes.NewReader(b)
+	return &HttpBodyGeneric{ct: ct, r: buf}
 }
 
-func (b HttpBodyJSON) ContentType() string {
-	return "application/json; charset=utf-8"
+func (h HttpBodyGeneric) ContentType() string {
+	return h.ct
 }
 
-func (b HttpBodyJSON) Reader() io.Reader {
-	return genericReader(b)
-}
-
-func IsValidJSON(buf []byte) bool {
-	trimmed := bytes.TrimSpace(buf)
-	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
-		if json.Valid(trimmed) {
-			return true
-		}
-	}
-	return false
-}
-
-type HttpBodyPlain string
-
-func (h HttpBodyPlain) ContentType() string {
-	return "text/plain; charset=utf-8"
-}
-
-func (h HttpBodyPlain) Reader() io.Reader {
-	return genericReader([]byte(h))
-}
-
-type HttpBodyHtml string
-
-func (h HttpBodyHtml) ContentType() string {
-	return "text/html; charset=utf-8"
-}
-
-func (h HttpBodyHtml) Reader() io.Reader {
-	return genericReader([]byte(h))
-}
-
-type HttpBodyForm map[string][]string
-
-func (h *HttpBodyForm) Add(key, val string) {
-	(*h)[key] = append((*h)[key], val)
-}
-
-func (h HttpBodyForm) ContentType() string {
-	return "application/x-www-form-urlencoded"
-}
-
-func (h HttpBodyForm) Reader() io.Reader {
-	q := url.Values(h)
-	enc := q.Encode()
-	return strings.NewReader(enc)
-}
-
-type HttpBodyMultipart struct {
-	Boundary string
-	Buf      *bytes.Buffer
-	Mw       *multipart.Writer
-}
-
-func NewHttpBodyMultipart() *HttpBodyMultipart {
-	buf := &bytes.Buffer{}
-	mw := multipart.NewWriter(buf)
-
-	return &HttpBodyMultipart{
-		Boundary: mw.Boundary(),
-		Buf:      buf,
-		Mw:       mw,
-	}
-}
-
-func (h *HttpBodyMultipart) AddField(key, val string) error {
-	return h.Mw.WriteField(key, val)
-}
-
-func (h *HttpBodyMultipart) AddFile(key, val string, file io.Reader) error {
-	part, err := h.Mw.CreateFormFile(key, val)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(part, file)
-	return err
-}
-
-func (h HttpBodyMultipart) ContentType() string {
-	return "multipart/form-data; boundary=" + h.Boundary
-}
-
-func (h HttpBodyMultipart) Reader() io.Reader {
-	return h.Buf
-}
-
-type HttpBodyOctetStream []byte
-
-func (h HttpBodyOctetStream) ContentType() string {
-	return "application/octet-stream"
-}
-
-func (h HttpBodyOctetStream) Reader() io.Reader {
-	return genericReader(h)
-}
-
-type HttpBodyXML []byte
-
-func (h HttpBodyXML) ContentType() string {
-	return "application/xml; charset=utf-8"
-}
-
-func (h HttpBodyXML) Reader() io.Reader {
-	return genericReader(h)
-}
-
-type HttpBodyCSS []byte
-
-func (h HttpBodyCSS) ContentType() string {
-	return "text/css; charset=utf-8"
-}
-
-func (h HttpBodyCSS) Reader() io.Reader {
-	return genericReader(h)
-}
-
-type HttpBodyJavascript []byte
-
-func (h HttpBodyJavascript) ContentType() string {
-	return "text/javascript; charset=utf-8"
-}
-
-func (h HttpBodyJavascript) Reader() io.Reader {
-	return genericReader(h)
-}
-
-type HttpBodyImage struct {
-	Ct string
-	B  []byte
-}
-
-func NewHttpBodyImage(b []byte) (*HttpBodyImage, error) {
-	ct := http.DetectContentType(b)
-	if !strings.HasPrefix(ct, "image") {
-		return nil, fmt.Errorf("not an image")
-	}
-	return &HttpBodyImage{
-		Ct: ct,
-		B:  b,
-	}, nil
-}
-
-func (h HttpBodyImage) ContentType() string {
-	return h.Ct
-}
-
-func (h HttpBodyImage) Reader() io.Reader {
-	return genericReader(h.B)
-}
-
-type HttpBodyAudio struct {
-	Ct string
-	B    []byte
-}
-
-func NewHttpBodyAudio(b []byte) (*HttpBodyAudio, error) {
-	ct := http.DetectContentType(b)
-	if !strings.HasPrefix(ct, "audio") {
-		return nil, fmt.Errorf("not an audio")
-	}
-	return &HttpBodyAudio{
-		Ct: ct,
-		B:  b,
-	}, nil
-}
-
-func (h HttpBodyAudio) ContentType() string {
-	return h.Ct
-}
-
-func (h HttpBodyAudio) Reader() io.Reader {
-	return genericReader(h.B)
-}
-
-type HttpBodyVideo struct {
-	Ct string
-	B    []byte
-}
-
-func NewHttpBodyVideo(b []byte) (*HttpBodyVideo, error) {
-	ct := http.DetectContentType(b)
-	if !strings.HasPrefix(ct, "video") {
-		return nil, fmt.Errorf("not a video")
-	}
-	return &HttpBodyVideo{
-		Ct: ct,
-		B:  b,
-	}, nil
-}
-
-func (h HttpBodyVideo) ContentType() string {
-	return h.Ct
-}
-
-func (h HttpBodyVideo) Reader() io.Reader {
-	return genericReader(h.B)
-}
-
-type HttpBodyPDF []byte
-
-func (h HttpBodyPDF) ContentType() string {
-	return "application/pdf"
-}
-
-func (h HttpBodyPDF) Reader() io.Reader {
-	return genericReader(h)
-}
-
-type HttpBodyZip []byte
-
-func (h HttpBodyZip) ContentType() string {
-	return "application/zip"
-}
-
-func (h HttpBodyZip) Reader() io.Reader {
-	return genericReader(h)
+func (h HttpBodyGeneric) Reader() io.Reader {
+	return h.r
 }
 
 type CookieJar map[string]Cookie
