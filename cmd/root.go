@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
@@ -27,6 +24,11 @@ func Execute() {
 }
 
 func init() {
+	RootCmd.PersistentFlags().Bool(
+		"from-file",
+		false,
+		"set an HTTP method used for http/s request",
+	)
 	RootCmd.PersistentFlags().StringP(
 		"method",
 		"M",
@@ -40,7 +42,6 @@ func init() {
 	RootCmd.PersistentFlags().Bool("sanitize-cookies", true, "omits empty or malformed cookies")
 	RootCmd.PersistentFlags().Bool("sanitize-headers", true, "omits empty or malformed headers")
 	RootCmd.PersistentFlags().Bool("sanitize-query", true, "omits empty or malformed query parameters")
-
 
 	RootCmd.PersistentFlags().StringArrayP(
 		"query",
@@ -80,6 +81,11 @@ func init() {
 
 func PreRun(cmd *cobra.Command, args []string) error {
 	arg := args[0]
+	isFromFile, _ := cmd.Flags().GetBool("from-file")
+	if isFromFile {
+		// FIXME: TEMPORARILY just trying to read it as a HttpRequest
+		return PreRunHttpFile(cmd, args)
+	}
 	if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
 		return PreRunHttp(cmd, args)
 	}

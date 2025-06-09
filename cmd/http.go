@@ -22,6 +22,7 @@ const ctxKeyHttpReq ctxKey = "httpReq"
 
 func PreRunHttp(cmd *cobra.Command, args []string) error {
 	m, _ := cmd.Flags().GetString("method")
+	fmt.Println(m)
 	req, err := httpcore.NewHttpRequest(args[0], m)
 	if err != nil {
 		return err
@@ -54,21 +55,57 @@ func RunHttp(req *httpcore.HttpRequest) error {
 			return err
 		}
 	}
-	var resp *http.Response
-	if req.ShouldSendRequest {
-		resp, err = http.DefaultClient.Do(r)
-		if err != nil {
-			return err
-		}
+	if !req.ShouldSendRequest {
+		fmt.Print(buf.String())
+		shared.PutBytesBuf(buf)
+		return nil
+	}
+	resp, err := http.DefaultClient.Do(r)
+	if err != nil {
+		return err
 	}
 	if req.ShouldDumpResponse {
 		err = DumpResponseSafely(resp, buf)
 		if err != nil {
 			return err
 		}
+	} else {
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		buf.Write(b)
+		if !bytes.HasSuffix(b, []byte("\n")) {
+			buf.WriteString("\n")
+		}
 	}
 	fmt.Print(buf.String())
 	shared.PutBytesBuf(buf)
+	return nil
+}
+
+func PreRunHttpFile(cmd *cobra.Command, args []string) error {
+	b, err := os.ReadFile(args[0])
+	if err != nil {
+		return err
+	}
+	req, err := httpcore.NewHttpRequestFromJSON(b)
+	if err != nil {
+		return err
+	}
+	ApplyRunTimeFlags(cmd, req)
+	req, err = ApplyRequestFlags(cmd, *req)
+	if err != nil {
+		return err
+	}
+	if HasAttachments(cmd) {
+		if err := AttachBody(cmd, req); err != nil {
+			return err
+		}
+	}
+	ctx := cmd.Context()
+	withVal := context.WithValue(ctx, ctxKeyHttpReq, req)
+	cmd.SetContext(withVal)
 	return nil
 }
 
@@ -160,6 +197,10 @@ func ApplyRunTimeFlags(cmd *cobra.Command, req *httpcore.HttpRequest) {
 }
 
 func ApplyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.HttpRequest, error) {
+	if cmd.Flags().Changed("method") {
+		m, _ := cmd.Flags().GetString("method")
+		req.Method = m
+	}
 	h, _ := cmd.Flags().GetStringArray("header")
 	headers, err := ParseKeyValues(h)
 	if err != nil {
