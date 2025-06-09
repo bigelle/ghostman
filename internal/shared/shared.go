@@ -2,11 +2,52 @@ package shared
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 )
 
-var BytesBufPool = &sync.Pool{
+var bytesBufPool = &sync.Pool{
 	New: func() any {
 		return bytes.NewBuffer([]byte{})
 	},
+}
+
+func BytesBuf() *bytes.Buffer {
+	return bytesBufPool.Get().(*bytes.Buffer)
+}
+
+func PutBytesBuf(b *bytes.Buffer) {
+	b.Reset()
+	bytesBufPool.Put(b)
+}
+
+var stringBuilderPool = &sync.Pool{
+	New: func() any {
+		return &strings.Builder{}
+	},
+}
+
+func StringBuilder() *strings.Builder {
+	return stringBuilderPool.Get().(*strings.Builder)
+}
+
+func PutStringBuilder(b *strings.Builder) {
+	b.Reset()
+	stringBuilderPool.Put(b)
+}
+
+var bytesPool = &sync.Pool{
+	New: func() any {
+		b := make([]byte, 0, 4096)
+		return &b
+	},
+}
+
+func Bytes() *[]byte {
+	return bytesPool.Get().(*[]byte)
+}
+
+func PutBytes(b *[]byte) {
+	*b = (*b)[:0]
+	bytesPool.Put(b)
 }

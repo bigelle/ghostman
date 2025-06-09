@@ -4,23 +4,19 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"fmt"
 	"os"
-	"slices"
+	"strings"
 
-	"github.com/bigelle/ghostman/cmd/httpcmd"
+	"github.com/bigelle/ghostman/internal/httpcore"
 	"github.com/spf13/cobra"
 )
 
 var RootCmd = &cobra.Command{
-	Use:   "ghostman",
-	Short: "deez nuts",
-	Run: func(cmd *cobra.Command, args []string) { 
-		if len(args) == 0 || slices.Contains(args, "--gui") {
-			//TODO: probably should catch it in the main block
-			fmt.Println("unimplemented")
-		}
-	},
+	Use:     "ghostman",
+	Short:   "deez nuts",
+	Args:    cobra.ExactArgs(1),
+	PreRunE: PreRun,
+	RunE:    Run,
 }
 
 func Execute() {
@@ -31,15 +27,68 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
+	RootCmd.PersistentFlags().StringP(
+		"method",
+		"M",
+		"GET",
+		"set an HTTP method used for http/s request",
+	)
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ghostman.yaml)")
+	RootCmd.PersistentFlags().Bool("dump-request", false, "dump the whole request")
+	RootCmd.PersistentFlags().Bool("dump-response", false, "dump the whole response")
+	RootCmd.PersistentFlags().Bool("send-request", true, "send request")
+	RootCmd.PersistentFlags().Bool("sanitize-cookies", true, "omits empty or malformed cookies")
+	RootCmd.PersistentFlags().Bool("sanitize-headers", true, "omits empty or malformed headers")
+	RootCmd.PersistentFlags().Bool("sanitize-query", true, "omits empty or malformed query parameters")
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	RootCmd.AddCommand(httpcmd.HttpCmd)
+
+	RootCmd.PersistentFlags().StringArrayP(
+		"query",
+		"Q",
+		[]string{},
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
+	RootCmd.PersistentFlags().StringArrayP(
+		"cookie",
+		"C",
+		[]string{},
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
+	RootCmd.PersistentFlags().StringArrayP(
+		"header",
+		"H",
+		[]string{},
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
+
+	RootCmd.PersistentFlags().String(
+		"data",
+		"",
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
+	RootCmd.PersistentFlags().StringArray(
+		"form",
+		[]string{},
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
+	RootCmd.PersistentFlags().StringArray(
+		"part",
+		[]string{},
+		"sets Content-Type header to 'text/html' and adds passed string as a body",
+	)
 }
 
+func PreRun(cmd *cobra.Command, args []string) error {
+	arg := args[0]
+	if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
+		return PreRunHttp(cmd, args)
+	}
+	return nil
+}
 
+func Run(cmd *cobra.Command, args []string) error {
+	if req, ok := cmd.Context().Value(ctxKeyHttpReq).(*httpcore.HttpRequest); ok {
+		return RunHttp(req)
+	}
+	return nil
+}
