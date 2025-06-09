@@ -161,7 +161,7 @@ func ApplyRunTimeFlags(cmd *cobra.Command, req *httpcore.HttpRequest) {
 
 func ApplyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.HttpRequest, error) {
 	h, _ := cmd.Flags().GetStringArray("header")
-	headers, err := httpcore.ParseKeyValues(h)
+	headers, err := ParseKeyValues(h)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func ApplyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 	}
 
 	q, _ := cmd.Flags().GetStringArray("query")
-	query, err := httpcore.ParseKeyValues(q)
+	query, err := ParseKeyValues(q)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func ApplyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 	}
 
 	c, _ := cmd.Flags().GetStringArray("cookie")
-	cookies, err := httpcore.ParseKeySingleValue(c)
+	cookies, err := ParseKeySingleValue(c)
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +188,41 @@ func ApplyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.
 	}
 
 	return &req, nil
+}
+
+// works with both headers and query parameters
+func ParseKeyValues(h []string) (map[string][]string, error) {
+	// example: -H "Accept:application/json,text/plain"
+	// should return: "Accept": {"application/json", "text/plain"}
+	// same with query params
+	result := make(map[string][]string)
+	for _, raw := range h {
+		parts := strings.SplitN(raw, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("wrong key:value pair format: %s", raw)
+		}
+		key := strings.TrimSpace(parts[0])
+		values := strings.Split(parts[1], ",")
+		for i := range values {
+			values[i] = strings.TrimSpace(values[i])
+		}
+		result[key] = append(result[key], values...)
+	}
+	return result, nil
+}
+
+func ParseKeySingleValue(h []string) (map[string]string, error) {
+	result := make(map[string]string)
+	for _, raw := range h {
+		parts := strings.SplitN(raw, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("wrong key:value pair format: %s", raw)
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		result[key] = value
+	}
+	return result, nil
 }
 
 func AttachBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
