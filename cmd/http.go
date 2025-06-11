@@ -22,7 +22,6 @@ const ctxKeyHttpReq ctxKey = "httpReq"
 
 func PreRunHttp(cmd *cobra.Command, args []string) error {
 	m, _ := cmd.Flags().GetString("method")
-	fmt.Println(m)
 	req, err := httpcore.NewHttpRequest(args[0], m)
 	if err != nil {
 		return err
@@ -56,11 +55,10 @@ func RunHttp(req *httpcore.HttpRequest) error {
 		}
 	}
 	if !req.ShouldSendRequest {
-		fmt.Print(buf.String())
 		shared.PutBytesBuf(buf)
 		return nil
 	}
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpcore.Client().Do(r)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,50 @@
+package httpcore
+
+import (
+	"crypto/tls"
+	"net"
+	"net/http"
+	"sync"
+	"time"
+)
+
+var (
+	client *http.Client
+	once   sync.Once
+)
+
+func Client() *http.Client {
+	once.Do(func() {
+		client = basicClient() // without options for now
+	})
+	return client
+}
+
+func basicClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			ForceAttemptHTTP2:   false,
+			MaxIdleConns:        200,
+			MaxIdleConnsPerHost: 50,
+			MaxConnsPerHost:     0,
+			IdleConnTimeout:     60 * time.Second,
+			DialContext: (&net.Dialer{
+				Timeout:   4 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   4 * time.Second,
+			ResponseHeaderTimeout: 4 * time.Second,
+			ExpectContinueTimeout: 750 * time.Millisecond,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false,
+				MinVersion:         tls.VersionTLS11,
+				MaxVersion:         tls.VersionTLS13,
+			},
+			DisableCompression: true,
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Timeout: 30 * time.Second,
+	}
+}
