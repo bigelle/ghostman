@@ -55,6 +55,8 @@ func RunHttp(req *httpcore.HttpRequest) error {
 		}
 	}
 	if !req.ShouldSendRequest {
+		// early exit
+		fmt.Print(buf.String())
 		shared.PutBytesBuf(buf)
 		return nil
 	}

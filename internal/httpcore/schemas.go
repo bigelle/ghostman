@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -57,6 +58,7 @@ type HttpRequest struct {
 	QueryParams map[string][]string `json:"query_params"`
 	Headers     map[string][]string `json:"headers"`
 	Cookies     []Cookie            `json:"cookies"`
+	Body        *HttpBodySpec       `json:"body,omitempty"`
 
 	// runtime opts
 	ShouldDumpRequest     bool `json:"should_dump_request"`
@@ -74,7 +76,7 @@ func (h HttpRequest) IsEmptyBody() bool {
 	return h.body == nil
 }
 
-func (h HttpRequest) Body() io.Reader {
+func (h HttpRequest) GetBody() io.Reader {
 	if h.IsEmptyBody() {
 		return nil
 	}
@@ -82,10 +84,17 @@ func (h HttpRequest) Body() io.Reader {
 }
 
 func (h HttpRequest) ToHTTP() (*http.Request, error) {
+	if h.Body != nil {
+		body, err := h.Body.ToHttpBody()
+		if err != nil {
+			return nil, err
+		}
+		h.SetBody(body)
+	}
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
 		strings.ToUpper(h.Method),
 		h.URL,
-		h.Body(),
+		h.GetBody(),
 	)
 	if err != nil {
 		return nil, err
@@ -143,6 +152,88 @@ func (h *HttpRequest) AddCookie(key string, val string) {
 
 func (h *HttpRequest) SetBody(b HttpBody) {
 	h.body = b
+}
+
+type HttpBodySpec struct {
+	Type            string               `json:"type"`
+	Text            *string              `json:"text,omitempty"`
+	File            *string              `json:"file,omitempty"`
+	FormData        *map[string][]string `json:"form_data,omitempty"`
+	MultipartFields *[]MultipartField     `json:"multipart_fields"`
+}
+
+func (h HttpBodySpec) ToHttpBody() (HttpBody, error) {
+	switch h.Type {
+	case "form":
+		if h.FormData == nil {
+			return nil, fmt.Errorf("empty form")
+		}
+		return HttpBodyForm(*h.FormData), nil
+	case "multipart":
+		if h.MultipartFields == nil {
+			return nil, fmt.Errorf("no multipart fields")
+		}
+		return h.toMultipart()
+	case "content":
+		if h.Text == nil {
+			return nil, fmt.Errorf("no content")
+		}
+		return h.toGeneric()
+	default:
+		return nil, fmt.Errorf("unknown body type: %s", h.Type)
+	}
+}
+
+func (h HttpBodySpec) toGeneric() (*HttpBodyGeneric, error) {
+	buf := make([]byte, 1024)
+	if h.File != nil {
+		f, err := os.Open(*h.File)
+		if err != nil {
+			return nil, err
+		}
+		n, err := f.Read(buf)
+		if err != nil {
+			return nil, err
+		}
+		buf = buf[:n]
+	} else if h.Text != nil {
+		r := strings.NewReader(*h.Text)
+		n, err := r.Read(buf)
+		if err != nil {
+			return nil, err
+		}
+		buf = buf[:n]
+	}
+	ct := mimetype.Detect(buf)
+	return NewHttpBodyGeneric(ct.String(), buf), nil
+}
+
+func (h HttpBodySpec) toMultipart() (*HttpBodyMultipart, error) {
+	body := NewHttpBodyMultipart()
+
+	for _, field := range *h.MultipartFields {
+		if field.Text != nil {
+			if err := body.AddField(field.Name, *field.Text); err != nil {
+				return nil, err
+			}
+		}
+		if field.File != nil {
+			b, err := os.ReadFile(*field.File)
+			if err != nil {
+				return nil, err
+			}
+			if err := body.AddFile(field.Name, *field.File, b); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return body, nil
+}
+
+type MultipartField struct {
+	Name string  `json:"name"`
+	Text *string `json:"text,omitempty"`
+	File *string `json:"file,omitempty"`
 }
 
 type HttpBody interface {
