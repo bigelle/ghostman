@@ -93,7 +93,7 @@ func PreRun(cmd *cobra.Command, args []string) error {
 }
 
 func Run(cmd *cobra.Command, args []string) error {
-	if req, ok := cmd.Context().Value(ctxKeyHttpReq).(*httpcore.HttpRequest); ok {
+	if req, ok := cmd.Context().Value(ctxKeyHttpReq).(*httpcore.Request); ok {
 		return RunHttp(req)
 	}
 	return nil

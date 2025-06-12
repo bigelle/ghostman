@@ -7,7 +7,7 @@ import (
 )
 
 func Test_HttpRequest_Request(t *testing.T) {
-	httpreq := HttpRequest{
+	httpreq := Request{
 		Method: http.MethodGet,
 		URL:    "https://catfact.ninja/fact",
 		QueryParams: map[string][]string{

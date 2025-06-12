@@ -16,8 +16,8 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 )
 
-func NewHttpRequest(urlArg, method string) (*HttpRequest, error) {
-	req := HttpRequest{
+func NewRequest(urlArg, method string) (*Request, error) {
+	req := Request{
 		Method:      method,
 		URL:         urlArg,
 		QueryParams: make(map[string][]string),
@@ -40,25 +40,32 @@ func NewHttpRequest(urlArg, method string) (*HttpRequest, error) {
 	return &req, nil
 }
 
-func NewHttpRequestFromJSON(j []byte) (*HttpRequest, error) {
-	var req HttpRequest
+func NewRequestFromJSON(j []byte) (*Request, error) {
+	var req Request
 	r := bytes.NewReader(j)
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
 		return nil, err
 	}
+	if req.Body != nil {
+		body, err := req.Body.ToBody()
+		if err != nil {
+			return nil, err
+		}
+		req.SetBody(body)
+	}
 	return &req, nil
 }
 
-type HttpRequest struct {
+type Request struct {
 	// serializable
 	Method      string              `json:"method"`
 	URL         string              `json:"url"`
 	QueryParams map[string][]string `json:"query_params"`
 	Headers     map[string][]string `json:"headers"`
 	Cookies     []Cookie            `json:"cookies"`
-	Body        *HttpBodySpec       `json:"body,omitempty"`
+	Body        *BodySpec       `json:"body,omitempty"`
 
 	// runtime opts
 	ShouldDumpRequest     bool `json:"should_dump_request"`
@@ -69,28 +76,21 @@ type HttpRequest struct {
 	ShouldSanitizeCookies bool `json:"should_sanitize_cookies"`
 
 	// only through flags or methods
-	body HttpBody
+	body Body
 }
 
-func (h HttpRequest) IsEmptyBody() bool {
+func (h Request) IsEmptyBody() bool {
 	return h.body == nil
 }
 
-func (h HttpRequest) GetBody() io.Reader {
+func (h Request) GetBody() io.Reader {
 	if h.IsEmptyBody() {
 		return nil
 	}
 	return h.body.Reader()
 }
 
-func (h HttpRequest) ToHTTP() (*http.Request, error) {
-	if h.Body != nil {
-		body, err := h.Body.ToHttpBody()
-		if err != nil {
-			return nil, err
-		}
-		h.SetBody(body)
-	}
+func (h Request) ToHTTP() (*http.Request, error) {
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
 		strings.ToUpper(h.Method),
 		h.URL,
@@ -126,7 +126,7 @@ func (h HttpRequest) ToHTTP() (*http.Request, error) {
 }
 
 // TODO: set, get, del, remove
-func (h *HttpRequest) AddQueryParam(key string, val ...string) {
+func (h *Request) AddQueryParam(key string, val ...string) {
 	if h.ShouldSanitizeQuery && len(val) == 0 {
 		return
 	}
@@ -134,7 +134,7 @@ func (h *HttpRequest) AddQueryParam(key string, val ...string) {
 }
 
 // TODO: set, get, del, remove
-func (h *HttpRequest) AddHeader(key string, val ...string) {
+func (h *Request) AddHeader(key string, val ...string) {
 	if h.ShouldSanitizeHeaders && len(val) == 0 {
 		return
 	}
@@ -143,18 +143,18 @@ func (h *HttpRequest) AddHeader(key string, val ...string) {
 
 // TODO: set, get, del
 // TODO: replace key, val with a whole cookie
-func (h *HttpRequest) AddCookie(key string, val string) {
+func (h *Request) AddCookie(key string, val string) {
 	if h.ShouldSanitizeCookies && len(val) == 0 {
 		return
 	}
 	h.Cookies = append(h.Cookies, Cookie{Name: key, Value: val})
 }
 
-func (h *HttpRequest) SetBody(b HttpBody) {
+func (h *Request) SetBody(b Body) {
 	h.body = b
 }
 
-type HttpBodySpec struct {
+type BodySpec struct {
 	Type            string               `json:"type"`
 	Text            *string              `json:"text,omitempty"`
 	File            *string              `json:"file,omitempty"`
@@ -162,13 +162,13 @@ type HttpBodySpec struct {
 	MultipartFields *[]MultipartField     `json:"multipart_fields"`
 }
 
-func (h HttpBodySpec) ToHttpBody() (HttpBody, error) {
+func (h BodySpec) ToBody() (Body, error) {
 	switch h.Type {
 	case "form":
 		if h.FormData == nil {
 			return nil, fmt.Errorf("empty form")
 		}
-		return HttpBodyForm(*h.FormData), nil
+		return BodyForm(*h.FormData), nil
 	case "multipart":
 		if h.MultipartFields == nil {
 			return nil, fmt.Errorf("no multipart fields")
@@ -184,7 +184,7 @@ func (h HttpBodySpec) ToHttpBody() (HttpBody, error) {
 	}
 }
 
-func (h HttpBodySpec) toGeneric() (*HttpBodyGeneric, error) {
+func (h BodySpec) toGeneric() (*BodyGeneric, error) {
 	buf := make([]byte, 1024)
 	if h.File != nil {
 		f, err := os.Open(*h.File)
@@ -205,11 +205,11 @@ func (h HttpBodySpec) toGeneric() (*HttpBodyGeneric, error) {
 		buf = buf[:n]
 	}
 	ct := mimetype.Detect(buf)
-	return NewHttpBodyGeneric(ct.String(), buf), nil
+	return NewBodyGeneric(ct.String(), buf), nil
 }
 
-func (h HttpBodySpec) toMultipart() (*HttpBodyMultipart, error) {
-	body := NewHttpBodyMultipart()
+func (h BodySpec) toMultipart() (*BodyMultipart, error) {
+	body := NewBodyMultipart()
 
 	for _, field := range *h.MultipartFields {
 		if field.Text != nil {
@@ -236,44 +236,44 @@ type MultipartField struct {
 	File *string `json:"file,omitempty"`
 }
 
-type HttpBody interface {
+type Body interface {
 	ContentType() string
 	Reader() io.Reader
 	// TODO: Close() with cleanup if possible
 }
 
-type HttpBodyGeneric struct {
+type BodyGeneric struct {
 	ct string
 	r  io.Reader
 }
 
-func NewHttpBodyGeneric(ct string, b []byte) *HttpBodyGeneric {
+func NewBodyGeneric(ct string, b []byte) *BodyGeneric {
 	buf := bytes.NewReader(b)
-	return &HttpBodyGeneric{ct: ct, r: buf}
+	return &BodyGeneric{ct: ct, r: buf}
 }
 
-func (h HttpBodyGeneric) ContentType() string {
+func (h BodyGeneric) ContentType() string {
 	return h.ct
 }
 
-func (h HttpBodyGeneric) Reader() io.Reader {
+func (h BodyGeneric) Reader() io.Reader {
 	return h.r
 }
 
-type HttpBodyForm map[string][]string
+type BodyForm map[string][]string
 
-func (h *HttpBodyForm) Add(key, val string) {
+func (h *BodyForm) Add(key, val string) {
 	if h == nil {
 		return // not panicing
 	}
 	(*h)[key] = append((*h)[key], val)
 }
 
-func (h HttpBodyForm) ContentType() string {
+func (h BodyForm) ContentType() string {
 	return "application/x-www-url-formencoded"
 }
 
-func (h HttpBodyForm) Reader() io.Reader {
+func (h BodyForm) Reader() io.Reader {
 	q := url.Values{}
 	for k, vals := range h {
 		for _, v := range vals {
@@ -283,27 +283,27 @@ func (h HttpBodyForm) Reader() io.Reader {
 	return strings.NewReader(q.Encode())
 }
 
-type HttpBodyMultipart struct {
+type BodyMultipart struct {
 	Boundary string
 	Mw       *multipart.Writer
 	Buf      *bytes.Buffer
 }
 
-func NewHttpBodyMultipart() *HttpBodyMultipart {
+func NewBodyMultipart() *BodyMultipart {
 	buf := bytes.NewBuffer([]byte{})
 	mw := multipart.NewWriter(buf)
-	return &HttpBodyMultipart{
+	return &BodyMultipart{
 		Boundary: mw.Boundary(),
 		Mw:       mw,
 		Buf:      buf,
 	}
 }
 
-func (h *HttpBodyMultipart) AddField(key, val string) error {
+func (h *BodyMultipart) AddField(key, val string) error {
 	return h.Mw.WriteField(key, val)
 }
 
-func (h *HttpBodyMultipart) AddFile(key, val string, file []byte) error {
+func (h *BodyMultipart) AddFile(key, val string, file []byte) error {
 	r := bytes.NewReader(file)
 	header := textproto.MIMEHeader{
 		"Content-Disposition": []string{
@@ -321,11 +321,11 @@ func (h *HttpBodyMultipart) AddFile(key, val string, file []byte) error {
 	return err
 }
 
-func (h HttpBodyMultipart) ContentType() string {
+func (h BodyMultipart) ContentType() string {
 	return "multipart/form-data; boundary=" + h.Boundary
 }
 
-func (h HttpBodyMultipart) Reader() io.Reader {
+func (h BodyMultipart) Reader() io.Reader {
 	return h.Buf
 }
 
@@ -362,8 +362,8 @@ type Cookie struct {
 }
 
 // NOTE: the next whole thing is used only in test mode
-func NewHttpResponse(r *http.Response) (HttpResponse, error) {
-	resp := HttpResponse{
+func NewResponse(r *http.Response) (Response, error) {
+	resp := Response{
 		Code:    uint(r.StatusCode),
 		Headers: r.Header,
 		// TODO: response cookies
@@ -374,7 +374,7 @@ func NewHttpResponse(r *http.Response) (HttpResponse, error) {
 	return resp, nil
 }
 
-type HttpResponse struct {
+type Response struct {
 	Code    uint                `json:"code"`
 	Headers map[string][]string `json:"headers"`
 	Cookies []Cookie            `json:"cookies"`
@@ -382,6 +382,6 @@ type HttpResponse struct {
 	body io.Reader
 }
 
-func (h HttpResponse) IsSuccessful() bool {
+func (h Response) IsSuccessful() bool {
 	return h.Code >= http.StatusOK && h.Code < http.StatusMultipleChoices
 }

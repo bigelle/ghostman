@@ -22,7 +22,7 @@ const ctxKeyHttpReq ctxKey = "httpReq"
 
 func PreRunHttp(cmd *cobra.Command, args []string) error {
 	m, _ := cmd.Flags().GetString("method")
-	req, err := httpcore.NewHttpRequest(args[0], m)
+	req, err := httpcore.NewRequest(args[0], m)
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func PreRunHttp(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func RunHttp(req *httpcore.HttpRequest) error {
+func RunHttp(req *httpcore.Request) error {
 	r, err := req.ToHTTP()
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func PreRunHttpFile(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	req, err := httpcore.NewHttpRequestFromJSON(b)
+	req, err := httpcore.NewRequestFromJSON(b)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func DumpResponseSafely(resp *http.Response, w *bytes.Buffer) error {
 	return err
 }
 
-func ApplyRunTimeFlags(cmd *cobra.Command, req *httpcore.HttpRequest) {
+func ApplyRunTimeFlags(cmd *cobra.Command, req *httpcore.Request) {
 	if cmd.Flags().Changed("dump-request") {
 		f, _ := cmd.Flags().GetBool("dump-request")
 		req.ShouldDumpRequest = f
@@ -196,7 +196,7 @@ func ApplyRunTimeFlags(cmd *cobra.Command, req *httpcore.HttpRequest) {
 	}
 }
 
-func ApplyRequestFlags(cmd *cobra.Command, req httpcore.HttpRequest) (*httpcore.HttpRequest, error) {
+func ApplyRequestFlags(cmd *cobra.Command, req httpcore.Request) (*httpcore.Request, error) {
 	if cmd.Flags().Changed("method") {
 		m, _ := cmd.Flags().GetString("method")
 		req.Method = m
@@ -266,7 +266,7 @@ func ParseKeySingleValue(h []string) (map[string]string, error) {
 	return result, nil
 }
 
-func AttachBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+func AttachBody(cmd *cobra.Command, req *httpcore.Request) error {
 	switch {
 	case cmd.Flags().Changed("data"):
 		return AttachBodyData(cmd, req)
@@ -279,7 +279,7 @@ func AttachBody(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	}
 }
 
-func AttachBodyData(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+func AttachBodyData(cmd *cobra.Command, req *httpcore.Request) error {
 	arg, _ := cmd.Flags().GetString("data")
 	arg = strings.TrimSpace(arg)
 
@@ -290,20 +290,20 @@ func AttachBodyData(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 			return err
 		}
 		ct := mimetype.Detect(b)
-		body := httpcore.NewHttpBodyGeneric(ct.String(), b)
+		body := httpcore.NewBodyGeneric(ct.String(), b)
 		req.SetBody(body)
 	} else {
 		b := []byte(arg)
 		ct := mimetype.Detect(b)
-		body := httpcore.NewHttpBodyGeneric(ct.String(), b)
+		body := httpcore.NewBodyGeneric(ct.String(), b)
 		req.SetBody(body)
 	}
 	return nil
 }
 
-func AttachBodyForm(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+func AttachBodyForm(cmd *cobra.Command, req *httpcore.Request) error {
 	args, _ := cmd.Flags().GetStringArray("form")
-	body := httpcore.HttpBodyForm{}
+	body := httpcore.BodyForm{}
 
 	for _, arg := range args {
 		arg = strings.TrimSpace(arg)
@@ -326,9 +326,9 @@ func AttachBodyForm(cmd *cobra.Command, req *httpcore.HttpRequest) error {
 	return nil
 }
 
-func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.HttpRequest) error {
+func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 	args, _ := cmd.Flags().GetStringArray("part")
-	body := httpcore.NewHttpBodyMultipart()
+	body := httpcore.NewBodyMultipart()
 
 	for _, arg := range args {
 		arg = strings.TrimSpace(arg)
