@@ -21,8 +21,7 @@ type ctxKey string
 const ctxKeyHttpReq ctxKey = "httpReq"
 
 func PreRunHttp(cmd *cobra.Command, args []string) error {
-	m, _ := cmd.Flags().GetString("method")
-	req, err := httpcore.NewRequest(args[0], m)
+	req, err := httpcore.NewRequest(args[0])
 	if err != nil {
 		return err
 	}
@@ -219,31 +218,38 @@ func ApplyRequestFlags(cmd *cobra.Command, req httpcore.Request) (*httpcore.Requ
 		m, _ := cmd.Flags().GetString("method")
 		req.Method = m
 	}
-	h, _ := cmd.Flags().GetStringArray("header")
-	headers, err := ParseKeyValues(h)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range headers {
-		req.AddHeader(k, v...)
+
+	if cmd.Flags().Changed("header") {
+		h, _ := cmd.Flags().GetStringArray("header")
+		headers, err := ParseKeyValues(h)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range headers {
+			req.AddHeader(k, v...)
+		}
 	}
 
-	q, _ := cmd.Flags().GetStringArray("query")
-	query, err := ParseKeyValues(q)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range query {
-		req.AddQueryParam(k, v...)
+	if cmd.Flags().Changed("query") {
+		q, _ := cmd.Flags().GetStringArray("query")
+		query, err := ParseKeyValues(q)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range query {
+			req.AddQueryParam(k, v...)
+		}
 	}
 
-	c, _ := cmd.Flags().GetStringArray("cookie")
-	cookies, err := ParseKeySingleValue(c)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range cookies {
-		req.AddCookie(k, v)
+	if cmd.Flags().Changed("cookie") {
+		c, _ := cmd.Flags().GetStringArray("cookie")
+		cookies, err := ParseKeySingleValue(c)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range cookies {
+			req.AddCookie(k, v)
+		}
 	}
 
 	return &req, nil

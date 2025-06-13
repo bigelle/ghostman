@@ -13,15 +13,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bigelle/ghostman/internal/shared"
 	"github.com/gabriel-vasile/mimetype"
 )
 
-func NewRequest(urlArg, method string) (*Request, error) {
+func NewRequest(reqURL string) (*Request, error) {
+	_, err := url.ParseRequestURI(reqURL)
+	if err != nil {
+		return nil, err
+	}
+	return newRequest(reqURL, "GET")
+}
+
+func newRequest(url, method string) (*Request, error) {
 	query := make(map[string][]string)
 	headers := make(map[string][]string)
 	req := Request{
 		Method:      method,
-		URL:         urlArg,
+		URL:         url,
 		QueryParams: &query,
 		Headers:     &headers,
 
@@ -31,7 +40,7 @@ func NewRequest(urlArg, method string) (*Request, error) {
 		ShouldSanitizeQuery: true,
 	}
 
-	q, err := ExtractQueryParams(urlArg)
+	q, err := ExtractQueryParams(url)
 	if err != nil {
 		return nil, err
 	}
@@ -44,14 +53,16 @@ func NewRequest(urlArg, method string) (*Request, error) {
 
 func NewRequestFromJSON(j []byte) (*Request, error) {
 	var req Request
+
 	r := bytes.NewReader(j)
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
 		return nil, err
 	}
+
 	if req.Body != nil {
-		body, err := req.Body.ToBody()
+		body, err := req.Body.Parse()
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +105,7 @@ func (h Request) GetBody() io.Reader {
 
 func (h Request) ToHTTP() (*http.Request, error) {
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
-		strings.ToUpper(h.Method),
+		strings.ToUpper(strings.TrimSpace((h.Method))),
 		h.URL,
 		h.GetBody(),
 	)
@@ -170,7 +181,7 @@ type BodySpec struct {
 	MultipartFields *[]MultipartField    `json:"multipart_fields"`
 }
 
-func (h BodySpec) ToBody() (Body, error) {
+func (h BodySpec) Parse() (Body, error) {
 	switch h.Type {
 	case "form":
 		if h.FormData == nil {
@@ -193,27 +204,29 @@ func (h BodySpec) ToBody() (Body, error) {
 }
 
 func (h BodySpec) toGeneric() (*BodyGeneric, error) {
-	buf := make([]byte, 1024)
+	buf := shared.Bytes()
+	defer shared.PutBytes(buf)
+
 	if h.File != nil {
 		f, err := os.Open(*h.File)
 		if err != nil {
 			return nil, err
 		}
-		n, err := f.Read(buf)
+		n, err := f.Read(*buf)
 		if err != nil {
 			return nil, err
 		}
-		buf = buf[:n]
+		*buf = (*buf)[:n]
 	} else if h.Text != nil {
 		r := strings.NewReader(*h.Text)
-		n, err := r.Read(buf)
+		n, err := r.Read(*buf)
 		if err != nil {
 			return nil, err
 		}
-		buf = buf[:n]
+		*buf = (*buf)[:n]
 	}
-	ct := mimetype.Detect(buf)
-	return NewBodyGeneric(ct.String(), buf), nil
+	ct := mimetype.Detect(*buf)
+	return NewBodyGeneric(ct.String(), *buf), nil
 }
 
 func (h BodySpec) toMultipart() (*BodyMultipart, error) {
@@ -226,11 +239,20 @@ func (h BodySpec) toMultipart() (*BodyMultipart, error) {
 			}
 		}
 		if field.File != nil {
-			b, err := os.ReadFile(*field.File)
+			buf := shared.Bytes()
+			defer shared.PutBytes(buf)
+
+			f, err := os.Open(*field.File)
 			if err != nil {
 				return nil, err
 			}
-			if err := body.AddFile(field.Name, *field.File, b); err != nil {
+			n, err := f.Read(*buf)
+			if err != nil {
+				return nil, err
+			}
+			*buf = (*buf)[:n]
+
+			if err := body.AddFile(field.Name, *field.File, *buf); err != nil {
 				return nil, err
 			}
 		}
@@ -282,12 +304,7 @@ func (h BodyForm) ContentType() string {
 }
 
 func (h BodyForm) Reader() io.Reader {
-	q := url.Values{}
-	for k, vals := range h {
-		for _, v := range vals {
-			q.Add(k, v)
-		}
-	}
+	q := url.Values(h)
 	return strings.NewReader(q.Encode())
 }
 
@@ -298,7 +315,7 @@ type BodyMultipart struct {
 }
 
 func NewBodyMultipart() *BodyMultipart {
-	buf := bytes.NewBuffer([]byte{})
+	buf := &bytes.Buffer{}
 	mw := multipart.NewWriter(buf)
 	return &BodyMultipart{
 		Boundary: mw.Boundary(),
