@@ -38,7 +38,7 @@ func PutStringBuilder(b *strings.Builder) {
 
 var bytesPool = &sync.Pool{
 	New: func() any {
-		b := make([]byte, 0, 4096)
+		b := make([]byte, 4096)
 		return &b
 	},
 }
