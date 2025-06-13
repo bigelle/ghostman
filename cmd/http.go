@@ -47,30 +47,49 @@ func RunHttp(req *httpcore.Request) error {
 	if err != nil {
 		return err
 	}
+
 	buf := shared.BytesBuf()
+	defer shared.PutBytesBuf(buf)
+
+	type httpRequest struct {
+		resp *http.Response
+		err  error
+	}
+	chResp := make(chan httpRequest, 1)
+
+	if req.ShouldSendRequest {
+		go func() {
+			var resp *http.Response
+			resp, err = httpcore.Client().Do(r)
+			chResp <- httpRequest{resp: resp, err: err}
+		}()
+	}
+
 	if req.ShouldDumpRequest {
 		err = DumpRequestSafely(r, buf)
 		if err != nil {
 			return err
 		}
 	}
+
 	if !req.ShouldSendRequest {
 		// early exit
 		fmt.Print(buf.String())
-		shared.PutBytesBuf(buf)
 		return nil
 	}
-	resp, err := httpcore.Client().Do(r)
-	if err != nil {
+
+	result := <-chResp
+	if result.err != nil {
 		return err
 	}
+
 	if req.ShouldDumpResponse {
-		err = DumpResponseSafely(resp, buf)
+		err = DumpResponseSafely(result.resp, buf)
 		if err != nil {
 			return err
 		}
 	} else {
-		b, err := io.ReadAll(resp.Body)
+		b, err := io.ReadAll(result.resp.Body)
 		if err != nil {
 			return err
 		}
@@ -80,7 +99,6 @@ func RunHttp(req *httpcore.Request) error {
 		}
 	}
 	fmt.Print(buf.String())
-	shared.PutBytesBuf(buf)
 	return nil
 }
 

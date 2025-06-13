@@ -29,12 +29,12 @@ func basicClient() *http.Client {
 			MaxConnsPerHost:     0,
 			IdleConnTimeout:     60 * time.Second,
 			DialContext: (&net.Dialer{
-				Timeout:   4 * time.Second,
+				Timeout:   8 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
-			TLSHandshakeTimeout:   4 * time.Second,
-			ResponseHeaderTimeout: 4 * time.Second,
-			ExpectContinueTimeout: 750 * time.Millisecond,
+			TLSHandshakeTimeout:   8 * time.Second,
+			ResponseHeaderTimeout: 15 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: false,
 				MinVersion:         tls.VersionTLS11,
@@ -45,6 +45,6 @@ func basicClient() *http.Client {
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Timeout: 30 * time.Second,
+		Timeout: 60 * time.Second,
 	}
 }

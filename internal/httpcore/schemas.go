@@ -17,11 +17,13 @@ import (
 )
 
 func NewRequest(urlArg, method string) (*Request, error) {
+	query := make(map[string][]string)
+	headers := make(map[string][]string)
 	req := Request{
 		Method:      method,
 		URL:         urlArg,
-		QueryParams: make(map[string][]string),
-		Headers:     make(map[string][]string),
+		QueryParams: &query,
+		Headers:     &headers,
 
 		ShouldDumpRequest:   false,
 		ShouldDumpResponse:  false,
@@ -60,12 +62,12 @@ func NewRequestFromJSON(j []byte) (*Request, error) {
 
 type Request struct {
 	// serializable
-	Method      string              `json:"method"`
-	URL         string              `json:"url"`
-	QueryParams map[string][]string `json:"query_params"`
-	Headers     map[string][]string `json:"headers"`
-	Cookies     []Cookie            `json:"cookies"`
-	Body        *BodySpec       `json:"body,omitempty"`
+	Method      string               `json:"method"`
+	URL         string               `json:"url"`
+	QueryParams *map[string][]string `json:"query_params,omitempty"`
+	Headers     *map[string][]string `json:"headers,omitempty"`
+	Cookies     *[]Cookie            `json:"cookies,omitempty"`
+	Body        *BodySpec            `json:"body,omitempty"`
 
 	// runtime opts
 	ShouldDumpRequest     bool `json:"should_dump_request"`
@@ -101,21 +103,27 @@ func (h Request) ToHTTP() (*http.Request, error) {
 	}
 
 	q := req.URL.Query()
-	for key, val := range h.QueryParams {
-		for _, v := range val {
-			q.Add(key, v)
+	if h.QueryParams != nil {
+		for key, val := range *h.QueryParams {
+			for _, v := range val {
+				q.Add(key, v)
+			}
 		}
 	}
 	req.URL.RawQuery = q.Encode()
 
-	for k, vals := range h.Headers {
-		for _, v := range vals {
-			req.Header.Add(k, v)
+	if h.Headers != nil {
+		for k, vals := range *h.Headers {
+			for _, v := range vals {
+				req.Header.Add(k, v)
+			}
 		}
 	}
 
-	for _, v := range h.Cookies {
-		req.AddCookie(&http.Cookie{Name: v.Name, Value: v.Value})
+	if *h.Cookies != nil {
+		for _, v := range *h.Cookies {
+			req.AddCookie(&http.Cookie{Name: v.Name, Value: v.Value})
+		}
 	}
 
 	if !h.IsEmptyBody() {
@@ -130,7 +138,7 @@ func (h *Request) AddQueryParam(key string, val ...string) {
 	if h.ShouldSanitizeQuery && len(val) == 0 {
 		return
 	}
-	h.QueryParams[key] = append(h.QueryParams[key], val...)
+	(*h.QueryParams)[key] = append((*h.QueryParams)[key], val...)
 }
 
 // TODO: set, get, del, remove
@@ -138,7 +146,7 @@ func (h *Request) AddHeader(key string, val ...string) {
 	if h.ShouldSanitizeHeaders && len(val) == 0 {
 		return
 	}
-	h.Headers[key] = append(h.Headers[key], val...)
+	(*h.Headers)[key] = append((*h.Headers)[key], val...)
 }
 
 // TODO: set, get, del
@@ -147,7 +155,7 @@ func (h *Request) AddCookie(key string, val string) {
 	if h.ShouldSanitizeCookies && len(val) == 0 {
 		return
 	}
-	h.Cookies = append(h.Cookies, Cookie{Name: key, Value: val})
+	*h.Cookies = append(*h.Cookies, Cookie{Name: key, Value: val})
 }
 
 func (h *Request) SetBody(b Body) {
@@ -159,7 +167,7 @@ type BodySpec struct {
 	Text            *string              `json:"text,omitempty"`
 	File            *string              `json:"file,omitempty"`
 	FormData        *map[string][]string `json:"form_data,omitempty"`
-	MultipartFields *[]MultipartField     `json:"multipart_fields"`
+	MultipartFields *[]MultipartField    `json:"multipart_fields"`
 }
 
 func (h BodySpec) ToBody() (Body, error) {
