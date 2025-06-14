@@ -102,14 +102,24 @@ func RunHttp(req *httpcore.Request) error {
 }
 
 func PreRunHttpFile(cmd *cobra.Command, args []string) error {
-	b, err := os.ReadFile(args[0])
+	buf := shared.Bytes()
+	defer shared.PutBytes(buf)
+
+	f, err := os.Open(args[0])
 	if err != nil {
 		return err
 	}
-	req, err := httpcore.NewRequestFromJSON(b)
+	n, err := f.Read(*buf)
 	if err != nil {
 		return err
 	}
+	*buf = (*buf)[:n]
+
+	req, err := httpcore.NewRequestFromJSON(*buf)
+	if err != nil {
+		return err
+	}
+
 	ApplyRunTimeFlags(cmd, req)
 	req, err = ApplyRequestFlags(cmd, *req)
 	if err != nil {
@@ -120,6 +130,7 @@ func PreRunHttpFile(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
+
 	ctx := cmd.Context()
 	withVal := context.WithValue(ctx, ctxKeyHttpReq, req)
 	cmd.SetContext(withVal)
@@ -307,19 +318,30 @@ func AttachBodyData(cmd *cobra.Command, req *httpcore.Request) error {
 	arg, _ := cmd.Flags().GetString("data")
 	arg = strings.TrimSpace(arg)
 
+	buf := shared.Bytes()
+	defer shared.PutBytes(buf)
+
 	if strings.HasPrefix(arg, "@") {
 		path := strings.TrimPrefix(arg, "@")
-		b, err := os.ReadFile(path)
+		
+		f, err := os.Open(path)
 		if err != nil {
 			return err
 		}
-		ct := mimetype.Detect(b)
-		body := httpcore.BodyGeneric{Ct: ct.String(), B: b}
+		n, err := f.Read(*buf)
+		if err != nil {
+			return err
+		}
+		*buf = (*buf)[:n]
+
+		ct := mimetype.Detect(*buf)
+		body := httpcore.BodyGeneric{Ct: ct.String(), B: bytes.Clone(*buf)}
 		req.SetBody(body)
 	} else {
-		b := []byte(arg)
-		ct := mimetype.Detect(b)
-		body := httpcore.BodyGeneric{Ct: ct.String(), B: b}
+		*buf = append(*buf, arg...)
+
+		ct := mimetype.Detect(*buf)
+		body := httpcore.BodyGeneric{Ct: ct.String(), B: bytes.Clone(*buf)}
 		req.SetBody(body)
 	}
 	return nil
@@ -337,12 +359,21 @@ func AttachBodyForm(cmd *cobra.Command, req *httpcore.Request) error {
 			return fmt.Errorf("wrong form syntax")
 		}
 		if strings.HasPrefix(val, "@") {
+			buf := shared.Bytes()
+			defer shared.PutBytes(buf)
+
 			path := strings.TrimPrefix(val, "@")
-			b, err := os.ReadFile(path)
+			f, err := os.Open(path)
 			if err != nil {
 				return err
 			}
-			val = string(b)
+			n, err := f.Read(*buf)
+			if err != nil {
+				return err
+			}
+			*buf = (*buf)[:n]
+
+			val = string(*buf)
 		}
 		body.Add(key, val)
 	}
@@ -361,22 +392,41 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 		if !ok {
 			return fmt.Errorf("wrong part syntax")
 		}
+
 		if strings.HasPrefix(val, "@") {
+			buf := shared.Bytes()
+			defer shared.PutBytes(buf)
+
 			path := strings.TrimPrefix(val, "@")
-			b, err := os.ReadFile(path)
+			f, err := os.Open(path)
 			if err != nil {
 				return err
 			}
-			if err := body.AddFile(key, val, b); err != nil {
+			n, err := f.Read(*buf)
+			if err != nil {
+				return err
+			}
+			*buf = (*buf)[:n]
+
+			if err := body.AddFile(key, val, *buf); err != nil {
 				return err
 			}
 		} else if strings.HasPrefix(val, "<@") {
+			buf := shared.Bytes()
+			defer shared.PutBytes(buf)
+
 			path := strings.TrimPrefix(val, "<@")
-			b, err := os.ReadFile(path)
+			f, err := os.Open(path)
 			if err != nil {
 				return err
 			}
-			if err := body.AddField(key, string(b)); err != nil {
+			n, err := f.Read(*buf)
+			if err != nil {
+				return err
+			}
+			*buf = (*buf)[:n]
+
+			if err := body.AddField(key, string(*buf)); err != nil {
 				return err
 			}
 		} else {

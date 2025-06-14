@@ -38,10 +38,12 @@ func PutStringBuilder(b *strings.Builder) {
 
 var bytesPool = &sync.Pool{
 	New: func() any {
-		b := make([]byte, 4096)
+		b := make([]byte, 4 * 1024)
 		return &b
 	},
 }
+
+var bytesMaxCap = 64 * 1024
 
 func Bytes() *[]byte {
 	return bytesPool.Get().(*[]byte)
@@ -49,5 +51,8 @@ func Bytes() *[]byte {
 
 func PutBytes(b *[]byte) {
 	*b = (*b)[:0]
+	if cap(*b) > bytesMaxCap {
+		return
+	}
 	bytesPool.Put(b)
 }
