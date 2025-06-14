@@ -314,12 +314,12 @@ func AttachBodyData(cmd *cobra.Command, req *httpcore.Request) error {
 			return err
 		}
 		ct := mimetype.Detect(b)
-		body := httpcore.NewBodyGeneric(ct.String(), b)
+		body := httpcore.BodyGeneric{Ct: ct.String(), B: b}
 		req.SetBody(body)
 	} else {
 		b := []byte(arg)
 		ct := mimetype.Detect(b)
-		body := httpcore.NewBodyGeneric(ct.String(), b)
+		body := httpcore.BodyGeneric{Ct: ct.String(), B: b}
 		req.SetBody(body)
 	}
 	return nil

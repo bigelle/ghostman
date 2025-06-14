@@ -204,6 +204,10 @@ func (h BodySpec) Parse() (Body, error) {
 }
 
 func (h BodySpec) toGeneric() (*BodyGeneric, error) {
+	if h.File == nil && h.Text == nil {
+		return nil, fmt.Errorf("no text or file specified")
+	}
+
 	buf := shared.Bytes()
 	defer shared.PutBytes(buf)
 
@@ -226,10 +230,14 @@ func (h BodySpec) toGeneric() (*BodyGeneric, error) {
 		*buf = (*buf)[:n]
 	}
 	ct := mimetype.Detect(*buf)
-	return NewBodyGeneric(ct.String(), *buf), nil
+	return &BodyGeneric{Ct: ct.String(), B: bytes.Clone(*buf)}, nil
 }
 
 func (h BodySpec) toMultipart() (*BodyMultipart, error) {
+	if len(*h.MultipartFields) == 0 {
+		return nil, fmt.Errorf("no multipart fields")
+	}
+
 	body := NewBodyMultipart()
 
 	for _, field := range *h.MultipartFields {
@@ -273,21 +281,16 @@ type Body interface {
 }
 
 type BodyGeneric struct {
-	ct string
-	r  io.Reader
-}
-
-func NewBodyGeneric(ct string, b []byte) *BodyGeneric {
-	buf := bytes.NewReader(b)
-	return &BodyGeneric{ct: ct, r: buf}
+	Ct string
+	B  []byte
 }
 
 func (h BodyGeneric) ContentType() string {
-	return h.ct
+	return h.Ct
 }
 
 func (h BodyGeneric) Reader() io.Reader {
-	return h.r
+	return bytes.NewReader(h.B)
 }
 
 type BodyForm map[string][]string
