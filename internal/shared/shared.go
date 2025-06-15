@@ -45,14 +45,14 @@ var bytesPool = &sync.Pool{
 
 var bytesMaxCap = 64 * 1024
 
-func Bytes() *[]byte {
-	return bytesPool.Get().(*[]byte)
+func Bytes() []byte {
+	return bytesPool.Get().([]byte)
 }
 
-func PutBytes(b *[]byte) {
-	*b = (*b)[:0]
-	if cap(*b) > bytesMaxCap {
+func PutBytes(b []byte) {
+	b = b[:0]
+	if cap(b) > bytesMaxCap {
 		return
 	}
-	bytesPool.Put(b)
+	bytesPool.Put(&b)
 }

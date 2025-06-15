@@ -216,21 +216,21 @@ func (h BodySpec) toGeneric() (*BodyGeneric, error) {
 		if err != nil {
 			return nil, err
 		}
-		n, err := f.Read(*buf)
+		n, err := f.Read(buf)
 		if err != nil {
 			return nil, err
 		}
-		*buf = (*buf)[:n]
+		buf = buf[:n]
 	} else if h.Text != nil {
 		r := strings.NewReader(*h.Text)
-		n, err := r.Read(*buf)
+		n, err := r.Read(buf)
 		if err != nil {
 			return nil, err
 		}
-		*buf = (*buf)[:n]
+		buf = buf[:n]
 	}
-	ct := mimetype.Detect(*buf)
-	return &BodyGeneric{Ct: ct.String(), B: bytes.Clone(*buf)}, nil
+	ct := mimetype.Detect(buf)
+	return &BodyGeneric{Ct: ct.String(), B: bytes.Clone(buf)}, nil
 }
 
 func (h BodySpec) toMultipart() (*BodyMultipart, error) {
@@ -254,13 +254,13 @@ func (h BodySpec) toMultipart() (*BodyMultipart, error) {
 			if err != nil {
 				return nil, err
 			}
-			n, err := f.Read(*buf)
+			n, err := f.Read(buf)
 			if err != nil {
 				return nil, err
 			}
-			*buf = (*buf)[:n]
+			buf = buf[:n]
 
-			if err := body.AddFile(field.Name, *field.File, *buf); err != nil {
+			if err := body.AddFile(field.Name, *field.File, buf); err != nil {
 				return nil, err
 			}
 		}

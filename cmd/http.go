@@ -109,13 +109,13 @@ func PreRunHttpFile(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	n, err := f.Read(*buf)
+	n, err := f.Read(buf)
 	if err != nil {
 		return err
 	}
-	*buf = (*buf)[:n]
+	buf = buf[:n]
 
-	req, err := httpcore.NewRequestFromJSON(*buf)
+	req, err := httpcore.NewRequestFromJSON(buf)
 	if err != nil {
 		return err
 	}
@@ -328,20 +328,20 @@ func AttachBodyData(cmd *cobra.Command, req *httpcore.Request) error {
 		if err != nil {
 			return err
 		}
-		n, err := f.Read(*buf)
+		n, err := f.Read(buf)
 		if err != nil {
 			return err
 		}
-		*buf = (*buf)[:n]
+		buf = buf[:n]
 
-		ct := mimetype.Detect(*buf)
-		body := httpcore.BodyGeneric{Ct: ct.String(), B: bytes.Clone(*buf)}
+		ct := mimetype.Detect(buf)
+		body := httpcore.BodyGeneric{Ct: ct.String(), B: bytes.Clone(buf)}
 		req.SetBody(body)
 	} else {
-		*buf = append(*buf, arg...)
+		buf = append(buf, arg...)
 
-		ct := mimetype.Detect(*buf)
-		body := httpcore.BodyGeneric{Ct: ct.String(), B: bytes.Clone(*buf)}
+		ct := mimetype.Detect(buf)
+		body := httpcore.BodyGeneric{Ct: ct.String(), B: bytes.Clone(buf)}
 		req.SetBody(body)
 	}
 	return nil
@@ -367,13 +367,13 @@ func AttachBodyForm(cmd *cobra.Command, req *httpcore.Request) error {
 			if err != nil {
 				return err
 			}
-			n, err := f.Read(*buf)
+			n, err := f.Read(buf)
 			if err != nil {
 				return err
 			}
-			*buf = (*buf)[:n]
+			buf = buf[:n]
 
-			val = string(*buf)
+			val = string(buf)
 		}
 		body.Add(key, val)
 	}
@@ -402,13 +402,13 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 			if err != nil {
 				return err
 			}
-			n, err := f.Read(*buf)
+			n, err := f.Read(buf)
 			if err != nil {
 				return err
 			}
-			*buf = (*buf)[:n]
+			buf = buf[:n]
 
-			if err := body.AddFile(key, val, *buf); err != nil {
+			if err := body.AddFile(key, val, buf); err != nil {
 				return err
 			}
 		} else if strings.HasPrefix(val, "<@") {
@@ -420,13 +420,13 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 			if err != nil {
 				return err
 			}
-			n, err := f.Read(*buf)
+			n, err := f.Read(buf)
 			if err != nil {
 				return err
 			}
-			*buf = (*buf)[:n]
+			buf = buf[:n]
 
-			if err := body.AddField(key, string(*buf)); err != nil {
+			if err := body.AddField(key, string(buf)); err != nil {
 				return err
 			}
 		} else {
