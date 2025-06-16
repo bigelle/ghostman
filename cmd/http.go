@@ -64,12 +64,13 @@ func RunHttp(req *httpcore.Request) error {
 		}()
 	}
 
-	if req.ShouldDumpRequest {
-		err = DumpRequestSafely(r, buf)
-		if err != nil {
-			return err
-		}
-	}
+	//	if req.ShouldDumpRequest {
+	//		err = DumpRequestSafely(r, buf)
+	//		if err != nil {
+	//			return err
+	//		}
+	//	}
+	fmt.Fprintf(buf, "%s\n", req.String())
 
 	if !req.ShouldSendRequest {
 		// early exit
@@ -82,21 +83,28 @@ func RunHttp(req *httpcore.Request) error {
 		return err
 	}
 
-	if req.ShouldDumpResponse {
-		err = DumpResponseSafely(result.resp, buf)
-		if err != nil {
-			return err
-		}
-	} else {
-		b, err := io.ReadAll(result.resp.Body)
-		if err != nil {
-			return err
-		}
-		buf.Write(b)
-		if !bytes.HasSuffix(b, []byte("\n")) {
-			buf.WriteString("\n")
-		}
+	//	if req.ShouldDumpResponse {
+	//		err = DumpResponseSafely(result.resp, buf)
+	//		if err != nil {
+	//			return err
+	//		}
+	//	} else {
+	//		b, err := io.ReadAll(result.resp.Body)
+	//		if err != nil {
+	//			return err
+	//		}
+	//		buf.Write(b)
+	//		if !bytes.HasSuffix(b, []byte("\n")) {
+	//			buf.WriteString("\n")
+	//		}
+	//	}
+
+	resp, err := httpcore.NewResponse(result.resp)
+	if err != nil {
+		return err
 	}
+	fmt.Fprintf(buf, "\n%s\n", resp)
+
 	fmt.Print(buf.String())
 	return nil
 }
@@ -323,7 +331,7 @@ func AttachBodyData(cmd *cobra.Command, req *httpcore.Request) error {
 
 	if strings.HasPrefix(arg, "@") {
 		path := strings.TrimPrefix(arg, "@")
-		
+
 		f, err := os.Open(path)
 		if err != nil {
 			return err

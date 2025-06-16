@@ -3,10 +3,13 @@ package httpcore
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/bigelle/ghostman/internal/shared"
 )
 
 func NewRequest(reqURL string) (*Request, error) {
@@ -18,14 +21,11 @@ func NewRequest(reqURL string) (*Request, error) {
 }
 
 func newRequest(url, method string) (*Request, error) {
-	query := make(map[string][]string)
-	headers := make(map[string][]string)
 	req := Request{
-		Method:      method,
-		URL:         url,
-		QueryParams: &query,
-		Headers:     &headers,
-
+		Method:              method,
+		URL:                 url,
+		QueryParams:         make(map[string][]string),
+		Headers:             make(map[string][]string),
 		ShouldDumpRequest:   false,
 		ShouldDumpResponse:  false,
 		ShouldSendRequest:   true,
@@ -65,23 +65,55 @@ func NewRequestFromJSON(j []byte) (*Request, error) {
 
 type Request struct {
 	// serializable
-	Method      string               `json:"method"`
-	URL         string               `json:"url"`
-	QueryParams *map[string][]string `json:"query_params,omitempty"`
-	Headers     *map[string][]string `json:"headers,omitempty"`
-	Cookies     *[]Cookie            `json:"cookies,omitempty"`
-	Body        *BodySpec            `json:"body,omitempty"`
+	Method      string              `json:"method"`
+	URL         string              `json:"url"`
+	QueryParams map[string][]string `json:"query_params,omitempty"`
+	Headers     map[string][]string `json:"headers,omitempty"`
+	Cookies     []Cookie            `json:"cookies,omitempty"`
+	Body        *BodySpec           `json:"body,omitempty"`
 
 	// runtime opts
 	ShouldDumpRequest     bool `json:"should_dump_request"`
 	ShouldDumpResponse    bool `json:"should_dump_response"`
-	ShouldSendRequest     bool `json:"should_send_request"`
+	ShouldSendRequest     bool `json:"send_request"`
 	ShouldSanitizeQuery   bool `json:"should_sanitize_query"`
 	ShouldSanitizeHeaders bool `json:"should_sanitize_headers"`
 	ShouldSanitizeCookies bool `json:"should_sanitize_cookies"`
 
 	// only through flags or methods
 	body Body
+}
+
+func (r Request) String() string {
+	buf := shared.StringBuilder()
+	defer shared.PutStringBuilder(buf)
+
+	fullURL := r.URL
+	if len(r.QueryParams) > 0 {
+		params := url.Values(r.QueryParams)
+		fullURL += "?" + params.Encode()
+	}
+	fmt.Fprintf(buf, "%s %s\n", r.Method, fullURL)
+
+	for name, values := range r.Headers {
+		for _, value := range values {
+			fmt.Fprintf(buf, "  %s: %s\n", name, value)
+		}
+	}
+
+	if len(r.Cookies) > 0 {
+		var cookiePairs []string
+		for _, cookie := range r.Cookies {
+			cookiePairs = append(cookiePairs, fmt.Sprintf("%s=%s", cookie.Name, cookie.Value))
+		}
+		fmt.Fprintf(buf, "  Cookie: %s\n", strings.Join(cookiePairs, "; "))
+	}
+
+	if r.Body != nil && *r.Body.Text != "" {
+		fmt.Fprintf(buf, "\n%s\n", *r.Body.Text)
+	}
+
+	return buf.String()
 }
 
 func (h Request) IsEmptyBody() bool {
@@ -107,7 +139,7 @@ func (h Request) ToHTTP() (*http.Request, error) {
 
 	q := req.URL.Query()
 	if h.QueryParams != nil {
-		for key, val := range *h.QueryParams {
+		for key, val := range h.QueryParams {
 			for _, v := range val {
 				q.Add(key, v)
 			}
@@ -116,15 +148,15 @@ func (h Request) ToHTTP() (*http.Request, error) {
 	req.URL.RawQuery = q.Encode()
 
 	if h.Headers != nil {
-		for k, vals := range *h.Headers {
+		for k, vals := range h.Headers {
 			for _, v := range vals {
 				req.Header.Add(k, v)
 			}
 		}
 	}
 
-	if *h.Cookies != nil {
-		for _, v := range *h.Cookies {
+	if h.Cookies != nil {
+		for _, v := range h.Cookies {
 			req.AddCookie(&http.Cookie{Name: v.Name, Value: v.Value})
 		}
 	}
@@ -141,7 +173,7 @@ func (h *Request) AddQueryParam(key string, val ...string) {
 	if h.ShouldSanitizeQuery && len(val) == 0 {
 		return
 	}
-	(*h.QueryParams)[key] = append((*h.QueryParams)[key], val...)
+	h.QueryParams[key] = append(h.QueryParams[key], val...)
 }
 
 // TODO: set, get, del, remove
@@ -149,7 +181,7 @@ func (h *Request) AddHeader(key string, val ...string) {
 	if h.ShouldSanitizeHeaders && len(val) == 0 {
 		return
 	}
-	(*h.Headers)[key] = append((*h.Headers)[key], val...)
+	h.Headers[key] = append(h.Headers[key], val...)
 }
 
 // TODO: set, get, del
@@ -158,10 +190,9 @@ func (h *Request) AddCookie(key string, val string) {
 	if h.ShouldSanitizeCookies && len(val) == 0 {
 		return
 	}
-	*h.Cookies = append(*h.Cookies, Cookie{Name: key, Value: val})
+	h.Cookies = append(h.Cookies, Cookie{Name: key, Value: val})
 }
 
 func (h *Request) SetBody(b Body) {
 	h.body = b
 }
-

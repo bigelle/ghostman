@@ -10,13 +10,14 @@ import (
 )
 
 func TestCookie_Marshal(t *testing.T) {
+	m := 42
 	c := Cookie{
 		Name:        "foo",
 		Value:       "bar",
 		Domain:      "example.com",
 		Expires:     CookieTime{time.Date(2025, time.January, 1, 0, 0, 0, 0, time.FixedZone("GMT", 0))},
 		HttpOnly:    true,
-		MaxAge:      42,
+		MaxAge: &m,
 		Partitioned: true,
 		Path:        "/",
 		SameSite:    SameSiteLaxMode,

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/bigelle/ghostman/internal/shared"
 )
 
 type CookieJar map[string]Cookie
@@ -32,7 +34,7 @@ type Cookie struct {
 	Domain      string     `json:"domain,omitzero"`
 	Expires     CookieTime `json:"expires,omitzero"`
 	HttpOnly    bool       `json:"http_only,omitzero"`
-	MaxAge      int        `json:"max_age,omitzero"`
+	MaxAge      *int        `json:"max_age,omitzero"`
 	Partitioned bool       `json:"partitioned,omitzero"`
 	Path        string     `json:"path,omitzero"`
 	SameSite    SameSite   `json:"same_site,omitzero"`
@@ -41,6 +43,47 @@ type Cookie struct {
 
 type CookieTime struct {
 	time.Time
+}
+
+func (c Cookie) String() string {
+	buf := shared.StringBuilder()
+	defer shared.PutStringBuilder(buf)
+
+	fmt.Fprintf(buf, "%s=%s; ", c.Name, c.Value)
+		
+	if c.Domain != "" {
+		fmt.Fprintf(buf, "Domain=%s; ", c.Domain)
+	}
+	
+	if !c.Expires.IsZero() {
+		fmt.Fprintf(buf, "Expires=%s; ", c.Expires.Format(time.RFC1123))
+	}
+
+	if c.HttpOnly {
+		fmt.Fprint(buf, "HttpOnly; ")
+	}
+
+	if c.MaxAge != nil {
+		fmt.Fprintf(buf, "Max-Age=%d; ", *c.MaxAge)
+	}
+
+	if c.Partitioned {
+		fmt.Fprint(buf, "Partitioned; ")
+	}
+
+	if c.Path != "" {
+		fmt.Fprintf(buf, "Path=%s; ", c.Path)
+	}
+
+	if c.SameSite != SameSiteDefaultMode {
+		fmt.Fprintf(buf, "SameSite=%s; ", c.SameSite)
+	}
+
+	if c.Secure {
+		fmt.Fprint(buf, "Secure")
+	}
+
+	return buf.String()
 }
 
 func (c CookieTime) MarshalJSON() ([]byte, error) {
