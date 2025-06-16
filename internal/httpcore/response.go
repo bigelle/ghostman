@@ -8,7 +8,7 @@ import (
 	"github.com/bigelle/ghostman/internal/shared"
 )
 
-func NewResponse(r *http.Response) (Response, error) {
+func NewResponse(r *http.Response) (*Response, error) {
 	resp := Response{
 		Code:    r.StatusCode,
 		Headers: r.Header,
@@ -35,7 +35,7 @@ func NewResponse(r *http.Response) (Response, error) {
 		}
 		resp.Cookies = arr
 	}
-	return resp, nil
+	return &resp, nil
 }
 
 type Response struct {

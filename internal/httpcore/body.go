@@ -57,6 +57,8 @@ func (h BodySpec) toGeneric() (*BodyGeneric, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer f.Close()
+
 		n, err := f.Read(buf)
 		if err != nil {
 			return nil, err
@@ -95,6 +97,8 @@ func (h BodySpec) toMultipart() (*BodyMultipart, error) {
 			if err != nil {
 				return nil, err
 			}
+			defer f.Close()
+
 			n, err := f.Read(buf)
 			if err != nil {
 				return nil, err
@@ -118,6 +122,8 @@ type MultipartField struct {
 type Body interface {
 	ContentType() string
 	Reader() io.Reader
+	Len() int64
+	Close() error
 	// TODO: Close() with cleanup if possible
 }
 
@@ -132,6 +138,14 @@ func (h BodyGeneric) ContentType() string {
 
 func (h BodyGeneric) Reader() io.Reader {
 	return bytes.NewReader(h.B)
+}
+
+func (h BodyGeneric) Len() int64 {
+	return int64(len(h.B))
+}
+
+func (b BodyGeneric) Close() error {
+	return nil
 }
 
 type BodyForm map[string][]string
@@ -150,6 +164,15 @@ func (h BodyForm) ContentType() string {
 func (h BodyForm) Reader() io.Reader {
 	q := url.Values(h)
 	return strings.NewReader(q.Encode())
+}
+
+func (b BodyForm) Len() int64 {
+	// FIXME:
+	return 0
+}
+
+func (b BodyForm) Close() error {
+	return nil
 }
 
 type BodyMultipart struct {
@@ -196,4 +219,12 @@ func (h BodyMultipart) ContentType() string {
 
 func (h BodyMultipart) Reader() io.Reader {
 	return h.Buf
+}
+
+func (b BodyMultipart) Len() int64 {
+	return int64(b.Buf.Len())
+}
+
+func (b BodyMultipart) Close() error {
+	return b.Mw.Close()
 }

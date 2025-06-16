@@ -42,34 +42,22 @@ func PreRunHttp(cmd *cobra.Command, args []string) error {
 }
 
 func RunHttp(req *httpcore.Request) error {
-	r, err := req.ToHTTP()
-	if err != nil {
-		return err
-	}
-
 	buf := shared.BytesBuf()
 	defer shared.PutBytesBuf(buf)
 
 	type httpRequest struct {
-		resp *http.Response
+		resp *httpcore.Response
 		err  error
 	}
 	chResp := make(chan httpRequest, 1)
 
 	if req.ShouldSendRequest {
 		go func() {
-			var resp *http.Response
-			resp, err = httpcore.Client().Do(r)
+			resp, err := httpcore.Send(req)
 			chResp <- httpRequest{resp: resp, err: err}
 		}()
 	}
 
-	//	if req.ShouldDumpRequest {
-	//		err = DumpRequestSafely(r, buf)
-	//		if err != nil {
-	//			return err
-	//		}
-	//	}
 	fmt.Fprintf(buf, "%s\n", req.String())
 
 	if !req.ShouldSendRequest {
@@ -80,30 +68,10 @@ func RunHttp(req *httpcore.Request) error {
 
 	result := <-chResp
 	if result.err != nil {
-		return err
+		return result.err
 	}
 
-	//	if req.ShouldDumpResponse {
-	//		err = DumpResponseSafely(result.resp, buf)
-	//		if err != nil {
-	//			return err
-	//		}
-	//	} else {
-	//		b, err := io.ReadAll(result.resp.Body)
-	//		if err != nil {
-	//			return err
-	//		}
-	//		buf.Write(b)
-	//		if !bytes.HasSuffix(b, []byte("\n")) {
-	//			buf.WriteString("\n")
-	//		}
-	//	}
-
-	resp, err := httpcore.NewResponse(result.resp)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(buf, "\n%s\n", resp)
+	fmt.Fprintf(buf, "\n%s\n", result.resp)
 
 	fmt.Print(buf.String())
 	return nil
@@ -117,6 +85,8 @@ func PreRunHttpFile(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
+
 	n, err := f.Read(buf)
 	if err != nil {
 		return err
@@ -336,6 +306,8 @@ func AttachBodyData(cmd *cobra.Command, req *httpcore.Request) error {
 		if err != nil {
 			return err
 		}
+		defer f.Close()
+
 		n, err := f.Read(buf)
 		if err != nil {
 			return err
@@ -375,6 +347,8 @@ func AttachBodyForm(cmd *cobra.Command, req *httpcore.Request) error {
 			if err != nil {
 				return err
 			}
+			defer f.Close()
+
 			n, err := f.Read(buf)
 			if err != nil {
 				return err
@@ -410,6 +384,8 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 			if err != nil {
 				return err
 			}
+			defer f.Close()
+
 			n, err := f.Read(buf)
 			if err != nil {
 				return err
@@ -428,6 +404,8 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 			if err != nil {
 				return err
 			}
+			defer f.Close()
+
 			n, err := f.Read(buf)
 			if err != nil {
 				return err

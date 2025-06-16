@@ -48,3 +48,22 @@ func basicClient() *http.Client {
 		Timeout: 60 * time.Second,
 	}
 }
+
+func Send(req *Request) (*Response, error) {
+	if client == nil {
+		client = basicClient()
+	}
+
+	r, err := req.ToHTTP()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(r)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return NewResponse(resp)
+}

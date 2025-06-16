@@ -128,6 +128,8 @@ func (h Request) GetBody() io.Reader {
 }
 
 func (h Request) ToHTTP() (*http.Request, error) {
+	h.body.Close()
+
 	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
 		strings.ToUpper(strings.TrimSpace((h.Method))),
 		h.URL,
