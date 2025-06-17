@@ -124,7 +124,6 @@ type Body interface {
 	Reader() io.Reader
 	Len() int64
 	Close() error
-	// TODO: Close() with cleanup if possible
 }
 
 type BodyGeneric struct {

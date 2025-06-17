@@ -2,12 +2,14 @@ package httpcore
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/bigelle/ghostman/internal/shared"
 )
@@ -22,14 +24,18 @@ func NewRequest(reqURL string) (*Request, error) {
 
 func newRequest(url, method string) (*Request, error) {
 	req := Request{
-		Method:              method,
-		URL:                 url,
-		QueryParams:         make(map[string][]string),
-		Headers:             make(map[string][]string),
-		ShouldDumpRequest:   false,
-		ShouldDumpResponse:  false,
-		ShouldSendRequest:   true,
-		ShouldSanitizeQuery: true,
+		Method:      method,
+		URL:         url,
+		QueryParams: make(map[string][]string),
+		Headers:     make(map[string][]string),
+		Options: Options{
+			Verbose:         func(b bool) *bool { return &b }(false),
+			SendRequest:     func(b bool) *bool { return &b }(true),
+			SanitizeQuery:   func(b bool) *bool { return &b }(true),
+			SanitizeHeaders: func(b bool) *bool { return &b }(true),
+			SanitizeCookies: func(b bool) *bool { return &b }(true),
+			Timeout: 30,
+		},
 	}
 
 	q, err := ExtractQueryParams(url)
@@ -44,7 +50,18 @@ func newRequest(url, method string) (*Request, error) {
 }
 
 func NewRequestFromJSON(j []byte) (*Request, error) {
-	var req Request
+	req := Request{
+		QueryParams: make(map[string][]string),
+		Headers:     make(map[string][]string),
+		Options: Options{
+			Verbose:         func(b bool) *bool { return &b }(false),
+			SendRequest:     func(b bool) *bool { return &b }(true),
+			SanitizeQuery:   func(b bool) *bool { return &b }(true),
+			SanitizeHeaders: func(b bool) *bool { return &b }(true),
+			SanitizeCookies: func(b bool) *bool { return &b }(true),
+			Timeout: 30,
+		},
+	}
 
 	r := bytes.NewReader(j)
 	dec := json.NewDecoder(r)
@@ -73,15 +90,21 @@ type Request struct {
 	Body        *BodySpec           `json:"body,omitempty"`
 
 	// runtime opts
-	ShouldDumpRequest     bool `json:"should_dump_request"`
-	ShouldDumpResponse    bool `json:"should_dump_response"`
-	ShouldSendRequest     bool `json:"send_request"`
-	ShouldSanitizeQuery   bool `json:"should_sanitize_query"`
-	ShouldSanitizeHeaders bool `json:"should_sanitize_headers"`
-	ShouldSanitizeCookies bool `json:"should_sanitize_cookies"`
+	Options Options `json:"options"`
 
 	// only through flags or methods
 	body Body
+
+	cancel context.CancelFunc
+}
+
+type Options struct {
+	Verbose         *bool `json:"verbose,omitempty"`
+	SendRequest     *bool `json:"send_request,omitempty"`
+	SanitizeQuery   *bool `json:"sanitize_query,omitempty"`
+	SanitizeHeaders *bool `json:"sanitize_headers,omitempty"`
+	SanitizeCookies *bool `json:"sanitize_cookies,omitempty"`
+	Timeout         int   `json:"timeout,omitempty"`
 }
 
 func (r Request) String() string {
@@ -130,7 +153,11 @@ func (h Request) GetBody() io.Reader {
 func (h Request) ToHTTP() (*http.Request, error) {
 	h.body.Close()
 
-	req, err := http.NewRequest( // NOTE: shoud i use with context? and why?
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(h.Options.Timeout) * time.Second)
+	h.cancel = cancel
+
+	req, err := http.NewRequestWithContext( // NOTE: shoud i use with context? and why?
+		ctx,
 		strings.ToUpper(strings.TrimSpace((h.Method))),
 		h.URL,
 		h.GetBody(),
@@ -172,26 +199,17 @@ func (h Request) ToHTTP() (*http.Request, error) {
 
 // TODO: set, get, del, remove
 func (h *Request) AddQueryParam(key string, val ...string) {
-	if h.ShouldSanitizeQuery && len(val) == 0 {
-		return
-	}
 	h.QueryParams[key] = append(h.QueryParams[key], val...)
 }
 
 // TODO: set, get, del, remove
 func (h *Request) AddHeader(key string, val ...string) {
-	if h.ShouldSanitizeHeaders && len(val) == 0 {
-		return
-	}
 	h.Headers[key] = append(h.Headers[key], val...)
 }
 
 // TODO: set, get, del
 // TODO: replace key, val with a whole cookie
 func (h *Request) AddCookie(key string, val string) {
-	if h.ShouldSanitizeCookies && len(val) == 0 {
-		return
-	}
 	h.Cookies = append(h.Cookies, Cookie{Name: key, Value: val})
 }
 

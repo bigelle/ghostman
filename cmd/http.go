@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"net/http/httputil"
 	"os"
 	"strings"
 
@@ -51,7 +48,7 @@ func RunHttp(req *httpcore.Request) error {
 	}
 	chResp := make(chan httpRequest, 1)
 
-	if req.ShouldSendRequest {
+	if *req.Options.SendRequest {
 		go func() {
 			resp, err := httpcore.Send(req)
 			chResp <- httpRequest{resp: resp, err: err}
@@ -60,7 +57,7 @@ func RunHttp(req *httpcore.Request) error {
 
 	fmt.Fprintf(buf, "%s\n", req.String())
 
-	if !req.ShouldSendRequest {
+	if !*req.Options.SendRequest {
 		// early exit
 		fmt.Print(buf.String())
 		return nil
@@ -115,90 +112,26 @@ func PreRunHttpFile(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func DumpRequestSafely(req *http.Request, w *bytes.Buffer) error {
-	clone, err := CloneRequest(req)
-	if err != nil {
-		return err
-	}
-	b, err := httputil.DumpRequestOut(clone, true)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(b)
-	if !bytes.HasSuffix(b, []byte("\n")) {
-		w.WriteString("\n")
-	}
-	return err
-}
-
-func CloneRequest(req *http.Request) (*http.Request, error) {
-	var bodyBytes []byte
-	if req.Body != nil {
-		var err error
-		bodyBytes, err = io.ReadAll(req.Body)
-		if err != nil {
-			return nil, err
-		}
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-
-	clone := req.Clone(req.Context())
-	if bodyBytes != nil {
-		clone.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-	return clone, nil
-}
-
-func DumpResponseSafely(resp *http.Response, w *bytes.Buffer) error {
-	var bodyBytes []byte
-	if resp.Body != nil {
-		var err error
-		bodyBytes, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-
-	clone := *resp
-	if bodyBytes != nil {
-		clone.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-	b, err := httputil.DumpResponse(&clone, true)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(b)
-	if !bytes.HasSuffix(b, []byte("\n")) {
-		w.WriteString("\n")
-	}
-	return err
-}
-
 func ApplyRunTimeFlags(cmd *cobra.Command, req *httpcore.Request) {
-	if cmd.Flags().Changed("dump-request") {
-		f, _ := cmd.Flags().GetBool("dump-request")
-		req.ShouldDumpRequest = f
-	}
-	if cmd.Flags().Changed("dump-response") {
-		f, _ := cmd.Flags().GetBool("dump-response")
-		req.ShouldDumpResponse = f
+	if cmd.Flags().Changed("verbose") {
+		f, _ := cmd.Flags().GetBool("verbose")
+		req.Options.Verbose = &f
 	}
 	if cmd.Flags().Changed("send-request") {
 		f, _ := cmd.Flags().GetBool("send-request")
-		req.ShouldSendRequest = f
+		req.Options.SendRequest = &f
 	}
 	if cmd.Flags().Changed("sanitize-cookies") {
 		f, _ := cmd.Flags().GetBool("sanitize-cookies")
-		req.ShouldSanitizeCookies = f
+		req.Options.SanitizeCookies = &f
 	}
 	if cmd.Flags().Changed("sanitize-headers") {
 		f, _ := cmd.Flags().GetBool("sanitize-headers")
-		req.ShouldSanitizeHeaders = f
+		req.Options.SanitizeHeaders = &f
 	}
 	if cmd.Flags().Changed("sanitize-query") {
 		f, _ := cmd.Flags().GetBool("sanitize-query")
-		req.ShouldDumpResponse = f
+		req.Options.SanitizeQuery = &f
 	}
 }
 

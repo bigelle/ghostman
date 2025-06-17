@@ -36,8 +36,7 @@ func init() {
 		"set an HTTP method used for http/s request",
 	)
 
-	RootCmd.PersistentFlags().Bool("dump-request", false, "dump the whole request")
-	RootCmd.PersistentFlags().Bool("dump-response", false, "dump the whole response")
+	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "dump the whole request")
 	RootCmd.PersistentFlags().Bool("send-request", true, "send request")
 	RootCmd.PersistentFlags().Bool("sanitize-cookies", true, "omits empty or malformed cookies")
 	RootCmd.PersistentFlags().Bool("sanitize-headers", true, "omits empty or malformed headers")
