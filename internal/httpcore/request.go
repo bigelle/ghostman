@@ -34,7 +34,7 @@ func newRequest(url, method string) (*Request, error) {
 			SanitizeQuery:   func(b bool) *bool { return &b }(true),
 			SanitizeHeaders: func(b bool) *bool { return &b }(true),
 			SanitizeCookies: func(b bool) *bool { return &b }(true),
-			Timeout: 30,
+			Timeout:         30,
 		},
 	}
 
@@ -59,7 +59,7 @@ func NewRequestFromJSON(j []byte) (*Request, error) {
 			SanitizeQuery:   func(b bool) *bool { return &b }(true),
 			SanitizeHeaders: func(b bool) *bool { return &b }(true),
 			SanitizeCookies: func(b bool) *bool { return &b }(true),
-			Timeout: 30,
+			Timeout:         30,
 		},
 	}
 
@@ -94,8 +94,6 @@ type Request struct {
 
 	// only through flags or methods
 	body Body
-
-	cancel context.CancelFunc
 }
 
 type Options struct {
@@ -108,35 +106,7 @@ type Options struct {
 }
 
 func (r Request) String() string {
-	buf := shared.StringBuilder()
-	defer shared.PutStringBuilder(buf)
-
-	fullURL := r.URL
-	if len(r.QueryParams) > 0 {
-		params := url.Values(r.QueryParams)
-		fullURL += "?" + params.Encode()
-	}
-	fmt.Fprintf(buf, "%s %s\n", r.Method, fullURL)
-
-	for name, values := range r.Headers {
-		for _, value := range values {
-			fmt.Fprintf(buf, "  %s: %s\n", name, value)
-		}
-	}
-
-	if len(r.Cookies) > 0 {
-		var cookiePairs []string
-		for _, cookie := range r.Cookies {
-			cookiePairs = append(cookiePairs, fmt.Sprintf("%s=%s", cookie.Name, cookie.Value))
-		}
-		fmt.Fprintf(buf, "  Cookie: %s\n", strings.Join(cookiePairs, "; "))
-	}
-
-	if r.Body != nil && *r.Body.Text != "" {
-		fmt.Fprintf(buf, "\n%s\n", *r.Body.Text)
-	}
-
-	return buf.String()
+	return "" // FIXME:
 }
 
 func (h Request) IsEmptyBody() bool {
@@ -153,11 +123,7 @@ func (h Request) GetBody() io.Reader {
 func (h Request) ToHTTP() (*http.Request, error) {
 	h.body.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(h.Options.Timeout) * time.Second)
-	h.cancel = cancel
-
-	req, err := http.NewRequestWithContext( // NOTE: shoud i use with context? and why?
-		ctx,
+	req, err := http.NewRequest( 
 		strings.ToUpper(strings.TrimSpace((h.Method))),
 		h.URL,
 		h.GetBody(),
