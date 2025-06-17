@@ -56,7 +56,11 @@ func RunHttp(req *httpcore.Request) error {
 		}()
 	}
 
-	fmt.Fprintf(buf, "%s\n", req.String())
+	str, err := req.ToString()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(buf, "%s\n", str)
 
 	if !*req.Options.SendRequest {
 		// early exit

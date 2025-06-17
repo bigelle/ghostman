@@ -2,16 +2,14 @@ package httpcore
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
-	"github.com/bigelle/ghostman/internal/shared"
+	"github.com/charmbracelet/lipgloss/tree"
 )
 
 func NewRequest(reqURL string) (*Request, error) {
@@ -94,6 +92,7 @@ type Request struct {
 
 	// only through flags or methods
 	body Body
+	req  *http.Request
 }
 
 type Options struct {
@@ -105,8 +104,67 @@ type Options struct {
 	Timeout         int   `json:"timeout,omitempty"`
 }
 
-func (r Request) String() string {
-	return "" // FIXME:
+func (r Request) ToString() (string, error) {
+	if r.req == nil {
+		r.ToHTTP()
+	}
+
+	dump, err := DumpRequest(r.req)
+	if err != nil {
+		return "", err
+	}
+
+	bodyIndex := bytes.Index(dump, []byte("\r\n\r\n"))
+	var body []byte
+	if bodyIndex != -1 {
+		body = dump[bodyIndex+4:]
+	}
+
+	rows := strings.Split(string(dump), "\r\n")
+	if len(rows) == 0 {
+		return "", fmt.Errorf("malformed request")
+	}
+
+	rows = rows[1:]
+
+	var headers []string
+	var cookies []string
+	for _, row := range rows {
+		if strings.TrimSpace(row) == "" {
+			break
+		}
+		if strings.HasPrefix(row, "Cookie:") {
+			// temporarily just print them without any formatting
+			cookies = append(cookies, strings.TrimSpace(strings.TrimPrefix(row, "Cookie:")))
+			continue
+		}
+		headers = append(headers, row)
+	}
+
+	t := tree.Root(fmt.Sprintf("%s %s", r.Method, r.URL)) // temporarily without query
+
+	if len(headers) > 0 {
+		h := tree.Root("Headers:")
+		for _, header := range headers {
+			h.Child(header)
+		}
+		t.Child(h)
+	}
+
+	if len(cookies) > 0 {
+		c := tree.Root("Cookie:")
+		for _, cookie := range cookies {
+			c.Child(cookie)
+		}
+		t.Child(c)
+	}
+
+	if body != nil {
+		// temporarily just print the length
+		t.Child(fmt.Sprintf("Body: %d bytes", len(body)))
+	}
+
+	return t.String(), nil
 }
 
 func (h Request) IsEmptyBody() bool {
@@ -120,21 +178,21 @@ func (h Request) GetBody() io.Reader {
 	return h.body.Reader()
 }
 
-func (h Request) ToHTTP() (*http.Request, error) {
-	h.body.Close()
+func (r *Request) ToHTTP() (*http.Request, error) {
+	r.body.Close()
 
-	req, err := http.NewRequest( 
-		strings.ToUpper(strings.TrimSpace((h.Method))),
-		h.URL,
-		h.GetBody(),
+	req, err := http.NewRequest(
+		strings.ToUpper(strings.TrimSpace((r.Method))),
+		r.URL,
+		r.GetBody(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	q := req.URL.Query()
-	if h.QueryParams != nil {
-		for key, val := range h.QueryParams {
+	if r.QueryParams != nil {
+		for key, val := range r.QueryParams {
 			for _, v := range val {
 				q.Add(key, v)
 			}
@@ -142,24 +200,25 @@ func (h Request) ToHTTP() (*http.Request, error) {
 	}
 	req.URL.RawQuery = q.Encode()
 
-	if h.Headers != nil {
-		for k, vals := range h.Headers {
+	if r.Headers != nil {
+		for k, vals := range r.Headers {
 			for _, v := range vals {
 				req.Header.Add(k, v)
 			}
 		}
 	}
 
-	if h.Cookies != nil {
-		for _, v := range h.Cookies {
+	if r.Cookies != nil {
+		for _, v := range r.Cookies {
 			req.AddCookie(&http.Cookie{Name: v.Name, Value: v.Value})
 		}
 	}
 
-	if !h.IsEmptyBody() {
-		req.Header.Add("Content-Type", h.body.ContentType())
+	if !r.IsEmptyBody() {
+		req.Header.Add("Content-Type", r.body.ContentType())
 	}
 
+	r.req = req
 	return req, nil
 }
 
