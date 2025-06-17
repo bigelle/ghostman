@@ -50,7 +50,8 @@ func RunHttp(req *httpcore.Request) error {
 
 	if *req.Options.SendRequest {
 		go func() {
-			resp, err := httpcore.Send(req)
+			client := httpcore.NewClient()
+			resp, err := client.Send(req)
 			chResp <- httpRequest{resp: resp, err: err}
 		}()
 	}
