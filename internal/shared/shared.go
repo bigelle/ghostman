@@ -8,15 +8,20 @@ import (
 
 var bytesBufPool = &sync.Pool{
 	New: func() any {
-		return bytes.NewBuffer([]byte{})
+		return bytes.NewBuffer(make([]byte, 0, 4*1024))
 	},
 }
 
 func BytesBuf() *bytes.Buffer {
-	return bytesBufPool.Get().(*bytes.Buffer)
+	buf := bytesBufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	return buf
 }
 
 func PutBytesBuf(b *bytes.Buffer) {
+	if b.Cap() > 64*1024 { 
+		return
+	}
 	b.Reset()
 	bytesBufPool.Put(b)
 }
@@ -35,4 +40,3 @@ func PutStringBuilder(b *strings.Builder) {
 	b.Reset()
 	stringBuilderPool.Put(b)
 }
-

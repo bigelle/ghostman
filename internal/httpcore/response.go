@@ -1,11 +1,13 @@
 package httpcore
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
-	"github.com/bigelle/ghostman/internal/shared"
+	"github.com/charmbracelet/lipgloss/tree"
 )
 
 func NewResponse(r *http.Response) (*Response, error) {
@@ -13,9 +15,17 @@ func NewResponse(r *http.Response) (*Response, error) {
 		Code:    r.StatusCode,
 		Headers: r.Header,
 	}
+
 	if r.Body != nil {
-		resp.body = r.Body
+		buf := &bytes.Buffer{}
+		_, err := io.Copy(buf, r.Body)
+		if err != nil {
+			buf.Reset()
+			return nil, err
+		}
+		resp.body = buf
 	}
+
 	if cookies := r.Cookies(); cookies != nil {
 		arr := make([]Cookie, len(cookies))
 		for i, c := range cookies {
@@ -35,6 +45,7 @@ func NewResponse(r *http.Response) (*Response, error) {
 		}
 		resp.Cookies = arr
 	}
+
 	return &resp, nil
 }
 
@@ -43,26 +54,48 @@ type Response struct {
 	Headers map[string][]string `json:"headers"`
 	Cookies []Cookie            `json:"cookies"`
 
-	body io.Reader
+	body *bytes.Buffer
 }
 
 func (r Response) String() string {
-	buf := shared.StringBuilder()
-	defer shared.PutStringBuilder(buf)
+	t := tree.Root(fmt.Sprintf("%d %s", r.Code, http.StatusText(r.Code)))
 
-	fmt.Fprintf(buf, "%d %s\n", r.Code, http.StatusText(r.Code))
-
-	for key, vals := range r.Headers {
-		for _, val := range vals {
-			fmt.Fprintf(buf, "  %s: %s\n", key, val)
+	if len(r.Headers) > 0 {
+		h := tree.Root("Headers:")
+		for key, vals := range r.Headers {
+			h.Child(fmt.Sprintf("%s: %s", key, strings.Join(vals, "; ")))
 		}
+		t.Child(h)
 	}
 
-	for _, val := range r.Cookies {
-		fmt.Fprintf(buf, "  Set-Cookie: %s\n", val)
+	if len(r.Cookies) > 0 {
+		c := tree.Root("Set-Cookie:")
+		for _, cookie := range r.Cookies {
+			c.Child(cookie.String())
+		}
+		t.Child(c)
 	}
 
-	return buf.String()
+	if r.body != nil {
+		b, err := func() (*tree.Tree, error) {
+			size := FormatBytes(int64(r.body.Len()))
+
+			ct, ok := r.Headers["Content-Type"]
+			if !ok {
+				return nil, fmt.Errorf("no content type, weird")
+			}
+			ctStr := strings.Join(ct, "; ")
+			return tree.Root(fmt.Sprintf("Body: %s of %s", size, ctStr)), nil
+		}()
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		t.Child(b)
+	}
+
+	result := t.String()
+	return result
 }
 
 func (h Response) IsSuccessful() bool {

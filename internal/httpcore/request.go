@@ -168,7 +168,7 @@ func (r Request) ToString() (string, error) {
 }
 
 func (h Request) IsEmptyBody() bool {
-	return h.body == nil
+	return h.body == nil || h.body.Len() == 0
 }
 
 func (h Request) GetBody() io.Reader {

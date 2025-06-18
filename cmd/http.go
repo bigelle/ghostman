@@ -38,44 +38,31 @@ func PreRunHttp(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func RunHttp(req *httpcore.Request) error {
-	buf := shared.BytesBuf()
-	defer shared.PutBytesBuf(buf)
+func RunHttp(req *httpcore.Request) (err error) {
+	sendReq := *req.Options.SendRequest
 
-	type httpRequest struct {
-		resp *httpcore.Response
-		err  error
-	}
-	chResp := make(chan httpRequest, 1)
-
-	if *req.Options.SendRequest {
-		go func() {
-			client := httpcore.NewClient()
-			resp, err := client.Send(req)
-			chResp <- httpRequest{resp: resp, err: err}
-		}()
-	}
 
 	str, err := req.ToString()
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(buf, "%s\n", str)
+	fmt.Println(str)
 
-	if !*req.Options.SendRequest {
-		// early exit
-		fmt.Print(buf.String())
+	var resp *httpcore.Response
+	if sendReq {
+		client := httpcore.NewClient()
+		resp, err = client.Send(req)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !sendReq {
 		return nil
 	}
 
-	result := <-chResp
-	if result.err != nil {
-		return result.err
-	}
+	fmt.Println(resp.String())
 
-	fmt.Fprintf(buf, "\n%s\n", result.resp)
-
-	fmt.Print(buf.String())
 	return nil
 }
 
@@ -223,7 +210,7 @@ func AttachBody(cmd *cobra.Command, req *httpcore.Request) error {
 	case cmd.Flags().Changed("form"):
 		return AttachBodyForm(cmd, req)
 	case cmd.Flags().Changed("part"):
-	return AttachBodyMultipart(cmd, req)
+		return AttachBodyMultipart(cmd, req)
 	default:
 		return fmt.Errorf("you messed up flags")
 	}
