@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -80,8 +80,8 @@ func RunHttp(req *httpcore.Request) error {
 }
 
 func PreRunHttpFile(cmd *cobra.Command, args []string) error {
-	buf := shared.Bytes()
-	defer shared.PutBytes(buf)
+	buf := shared.BytesBuf()
+	defer shared.PutBytesBuf(buf)
 
 	f, err := os.Open(args[0])
 	if err != nil {
@@ -89,13 +89,12 @@ func PreRunHttpFile(cmd *cobra.Command, args []string) error {
 	}
 	defer f.Close()
 
-	n, err := f.Read(buf)
+	_, err = io.Copy(buf, f)
 	if err != nil {
 		return err
 	}
-	buf = buf[:n]
 
-	req, err := httpcore.NewRequestFromJSON(buf)
+	req, err := httpcore.NewRequestFromJSON(buf.Bytes())
 	if err != nil {
 		return err
 	}
@@ -224,7 +223,7 @@ func AttachBody(cmd *cobra.Command, req *httpcore.Request) error {
 	case cmd.Flags().Changed("form"):
 		return AttachBodyForm(cmd, req)
 	case cmd.Flags().Changed("part"):
-		return AttachBodyMultipart(cmd, req)
+	return AttachBodyMultipart(cmd, req)
 	default:
 		return fmt.Errorf("you messed up flags")
 	}
@@ -234,8 +233,8 @@ func AttachBodyData(cmd *cobra.Command, req *httpcore.Request) error {
 	arg, _ := cmd.Flags().GetString("data")
 	arg = strings.TrimSpace(arg)
 
-	buf := shared.Bytes()
-	defer shared.PutBytes(buf)
+	buf := shared.BytesBuf()
+	defer shared.PutBytesBuf(buf)
 
 	if strings.HasPrefix(arg, "@") {
 		path := strings.TrimPrefix(arg, "@")
@@ -246,20 +245,19 @@ func AttachBodyData(cmd *cobra.Command, req *httpcore.Request) error {
 		}
 		defer f.Close()
 
-		n, err := f.Read(buf)
+		_, err = io.Copy(buf, f)
 		if err != nil {
 			return err
 		}
-		buf = buf[:n]
 
-		ct := mimetype.Detect(buf)
-		body := httpcore.BodyGeneric{Ct: ct.String(), B: bytes.Clone(buf)}
+		ct := mimetype.Detect(buf.Bytes())
+		body := httpcore.BodyGeneric{Ct: ct.String(), B: buf.Bytes()}
 		req.SetBody(body)
 	} else {
-		buf = append(buf, arg...)
+		buf.WriteString(arg)
 
-		ct := mimetype.Detect(buf)
-		body := httpcore.BodyGeneric{Ct: ct.String(), B: bytes.Clone(buf)}
+		ct := mimetype.Detect(buf.Bytes())
+		body := httpcore.BodyGeneric{Ct: ct.String(), B: buf.Bytes()}
 		req.SetBody(body)
 	}
 	return nil
@@ -277,8 +275,8 @@ func AttachBodyForm(cmd *cobra.Command, req *httpcore.Request) error {
 			return fmt.Errorf("wrong form syntax")
 		}
 		if strings.HasPrefix(val, "@") {
-			buf := shared.Bytes()
-			defer shared.PutBytes(buf)
+			buf := shared.BytesBuf()
+			defer shared.PutBytesBuf(buf)
 
 			path := strings.TrimPrefix(val, "@")
 			f, err := os.Open(path)
@@ -287,13 +285,12 @@ func AttachBodyForm(cmd *cobra.Command, req *httpcore.Request) error {
 			}
 			defer f.Close()
 
-			n, err := f.Read(buf)
+			_, err = io.Copy(buf, f)
 			if err != nil {
 				return err
 			}
-			buf = buf[:n]
 
-			val = string(buf)
+			val = buf.String()
 		}
 		body.Add(key, val)
 	}
@@ -314,8 +311,8 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 		}
 
 		if strings.HasPrefix(val, "@") {
-			buf := shared.Bytes()
-			defer shared.PutBytes(buf)
+			buf := shared.BytesBuf()
+			defer shared.PutBytesBuf(buf)
 
 			path := strings.TrimPrefix(val, "@")
 			f, err := os.Open(path)
@@ -324,18 +321,17 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 			}
 			defer f.Close()
 
-			n, err := f.Read(buf)
+			_, err = io.Copy(buf, f)
 			if err != nil {
 				return err
 			}
-			buf = buf[:n]
 
-			if err := body.AddFile(key, val, buf); err != nil {
+			if err := body.AddFile(key, val, buf.Bytes()); err != nil {
 				return err
 			}
 		} else if strings.HasPrefix(val, "<@") {
-			buf := shared.Bytes()
-			defer shared.PutBytes(buf)
+			buf := shared.BytesBuf()
+			defer shared.PutBytesBuf(buf)
 
 			path := strings.TrimPrefix(val, "<@")
 			f, err := os.Open(path)
@@ -344,13 +340,12 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.Request) error {
 			}
 			defer f.Close()
 
-			n, err := f.Read(buf)
+			_, err = io.Copy(buf, f)
 			if err != nil {
 				return err
 			}
-			buf = buf[:n]
 
-			if err := body.AddField(key, string(buf)); err != nil {
+			if err := body.AddField(key, buf.String()); err != nil {
 				return err
 			}
 		} else {

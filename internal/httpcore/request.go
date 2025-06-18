@@ -160,8 +160,8 @@ func (r Request) ToString() (string, error) {
 	}
 
 	if body != nil {
-		// temporarily just print the length
-		t.Child(fmt.Sprintf("Body: %d bytes", len(body)))
+		size := FormatBytes(int64(len(body)))
+		t.Child(fmt.Sprintf("Body: %s of %s", size, r.req.Header.Get("Content-Type")))
 	}
 
 	return t.String(), nil

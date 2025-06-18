@@ -49,8 +49,8 @@ func (h BodySpec) toGeneric() (*BodyGeneric, error) {
 		return nil, fmt.Errorf("no text or file specified")
 	}
 
-	buf := shared.Bytes()
-	defer shared.PutBytes(buf)
+	buf := shared.BytesBuf()
+	defer shared.PutBytesBuf(buf)
 
 	if h.File != nil {
 		f, err := os.Open(*h.File)
@@ -59,21 +59,19 @@ func (h BodySpec) toGeneric() (*BodyGeneric, error) {
 		}
 		defer f.Close()
 
-		n, err := f.Read(buf)
+		_, err = io.Copy(buf, f)
 		if err != nil {
 			return nil, err
 		}
-		buf = buf[:n]
 	} else if h.Text != nil {
-		r := strings.NewReader(*h.Text)
-		n, err := r.Read(buf)
+		_, err := buf.WriteString(*h.Text)
 		if err != nil {
 			return nil, err
 		}
-		buf = buf[:n]
 	}
-	ct := mimetype.Detect(buf)
-	return &BodyGeneric{Ct: ct.String(), B: bytes.Clone(buf)}, nil
+	b := buf.Bytes()
+	ct := mimetype.Detect(b)
+	return &BodyGeneric{Ct: ct.String(), B: b}, nil
 }
 
 func (h BodySpec) toMultipart() (*BodyMultipart, error) {
@@ -90,8 +88,8 @@ func (h BodySpec) toMultipart() (*BodyMultipart, error) {
 			}
 		}
 		if field.File != nil {
-			buf := shared.Bytes()
-			defer shared.PutBytes(buf)
+			buf := shared.BytesBuf()
+			defer shared.PutBytesBuf(buf)
 
 			f, err := os.Open(*field.File)
 			if err != nil {
@@ -99,13 +97,12 @@ func (h BodySpec) toMultipart() (*BodyMultipart, error) {
 			}
 			defer f.Close()
 
-			n, err := f.Read(buf)
+			_, err = io.Copy(buf, f)
 			if err != nil {
 				return nil, err
 			}
-			buf = buf[:n]
 
-			if err := body.AddFile(field.Name, *field.File, buf); err != nil {
+			if err := body.AddFile(field.Name, *field.File, buf.Bytes()); err != nil {
 				return nil, err
 			}
 		}
