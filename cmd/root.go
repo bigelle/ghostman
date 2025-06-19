@@ -35,6 +35,12 @@ func init() {
 		"GET",
 		"set an HTTP method used for http/s request",
 	)
+	RootCmd.PersistentFlags().StringP(
+		"out",
+		"O",
+		"stdout",
+		"set the output for the request. pass 'stdout' to print into stdout",
+	)
 
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "dump the whole request")
 	RootCmd.PersistentFlags().Bool("send-request", true, "send request")
