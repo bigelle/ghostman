@@ -10,9 +10,9 @@ import (
 )
 
 func ExtractQueryParams(raw string) (map[string][]string, error) {
-	parsed, err := url.Parse(raw)
+	parsed, err := url.ParseRequestURI(raw)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
 	return parsed.Query(), nil
 }
@@ -29,13 +29,14 @@ func DumpRequest(req *http.Request) (dump []byte, err error) {
 	}
 
 	dump, err = httputil.DumpRequestOut(req, true)
-	if err != nil {
-		return nil, err
-	}
 
 	req.Body = io.NopCloser(bytes.NewReader(buf))
 
-	return dump, err
+	if err != nil {
+		return nil, fmt.Errorf("error dumping request: %w", err)
+	}
+
+	return dump, nil
 }
 
 func FormatBytes(bytes int64) string {

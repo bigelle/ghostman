@@ -2,6 +2,7 @@ package httpcore
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -55,14 +56,19 @@ func NewClient(opts ...ClientOption) *Client {
 func (c *Client) Send(req *Request) (*Response, error) {
 	r, err := req.ToHTTP()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing request: %w", err)
 	}
 
 	resp, err := c.client.Do(r)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error sending request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	return NewResponse(resp)
+	res, err :=  NewResponse(resp)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing response: %w", err)
+	}
+
+	return res, nil
 }

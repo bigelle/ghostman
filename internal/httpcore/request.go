@@ -9,21 +9,107 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
 )
 
-func NewRequest(reqURL string) (*Request, error) {
-	_, err := url.ParseRequestURI(reqURL)
-	if err != nil {
-		return nil, err
+type Method string
+
+func (m Method) Color() string {
+	baseStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("FFFFFF")).
+		Bold(true).
+		Padding(0, 1)
+	switch m {
+	case "GET":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#16a34a",
+				ANSI256:   "28",
+				ANSI:      "2",
+			},
+		)
+		return style.Render(string(m))
+	case "POST":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#3b82f6",
+				ANSI256:   "33",
+				ANSI:      "4",
+			},
+		)
+		return style.Render(string(m))
+	case "PUT":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#f59e0b",
+				ANSI256:   "214",
+				ANSI:      "3",
+			},
+		)
+		return style.Render(string(m))
+	case "PATCH":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#8b5cf6",
+				ANSI256:   "99",
+				ANSI:      "5",
+			},
+		)
+		return style.Render(string(m))
+	case "DELETE":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#ef4444",
+				ANSI256:   "196",
+				ANSI:      "1",
+			},
+		)
+		return style.Render(string(m))
+	case "HEAD":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#06b6d4",
+				ANSI256:   "31",
+				ANSI:      "6",
+			},
+		)
+		return style.Render(string(m))
+	case "OPTIONS":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#84cc16",
+				ANSI256:   "112",
+				ANSI:      "10",
+			},
+		)
+		return style.Render(string(m))
+	case "TRACE":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#64748b",
+				ANSI256:   "244",
+				ANSI:      "8",
+			},
+		)
+		return style.Render(string(m))
+	case "CONNECT":
+		style := baseStyle.Background(
+			lipgloss.CompleteColor{
+				TrueColor: "#f97316",
+				ANSI256:   "202",
+				ANSI:      "9",
+			},
+		)
+		return style.Render(string(m))
+	default:
+		return baseStyle.Render(string(m))
 	}
-	return newRequest(reqURL, "GET")
 }
 
-func newRequest(url, method string) (*Request, error) {
+func NewRequest(reqUrl string) (*Request, error) {
 	req := Request{
-		Method:      method,
-		URL:         url,
+		Method:      http.MethodGet,
 		QueryParams: make(map[string][]string),
 		Headers:     make(map[string][]string),
 		Options: Options{
@@ -36,12 +122,9 @@ func newRequest(url, method string) (*Request, error) {
 		},
 	}
 
-	q, err := ExtractQueryParams(url)
+	_, err := url.ParseRequestURI(reqUrl)
 	if err != nil {
-		return nil, err
-	}
-	for k, v := range q {
-		req.AddQueryParam(k, v...)
+		return nil, fmt.Errorf("invalid request URL: %w", err)
 	}
 
 	return &req, nil
@@ -53,6 +136,7 @@ func NewRequestFromJSON(j []byte) (*Request, error) {
 		Headers:     make(map[string][]string),
 		Options: Options{
 			Verbose:         func(b bool) *bool { return &b }(false),
+			Out:             "stdout",
 			SendRequest:     func(b bool) *bool { return &b }(true),
 			SanitizeQuery:   func(b bool) *bool { return &b }(true),
 			SanitizeHeaders: func(b bool) *bool { return &b }(true),
@@ -64,6 +148,7 @@ func NewRequestFromJSON(j []byte) (*Request, error) {
 	r := bytes.NewReader(j)
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
+
 	if err := dec.Decode(&req); err != nil {
 		return nil, err
 	}
@@ -71,16 +156,18 @@ func NewRequestFromJSON(j []byte) (*Request, error) {
 	if req.Body != nil {
 		body, err := req.Body.Parse()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("can't attach a body: %w", err)
 		}
+
 		req.SetBody(body)
 	}
+
 	return &req, nil
 }
 
 type Request struct {
 	// serializable
-	Method      string              `json:"method"`
+	Method      Method              `json:"method"`
 	URL         string              `json:"url"`
 	QueryParams map[string][]string `json:"query_params,omitempty"`
 	Headers     map[string][]string `json:"headers,omitempty"`
@@ -96,12 +183,13 @@ type Request struct {
 }
 
 type Options struct {
-	Verbose         *bool `json:"verbose,omitempty"`
-	SendRequest     *bool `json:"send_request,omitempty"`
-	SanitizeQuery   *bool `json:"sanitize_query,omitempty"`
-	SanitizeHeaders *bool `json:"sanitize_headers,omitempty"`
-	SanitizeCookies *bool `json:"sanitize_cookies,omitempty"`
-	Timeout         int   `json:"timeout,omitempty"`
+	Verbose         *bool  `json:"verbose,omitempty"`
+	SendRequest     *bool  `json:"send_request,omitempty"`
+	SanitizeQuery   *bool  `json:"sanitize_query,omitempty"`
+	SanitizeHeaders *bool  `json:"sanitize_headers,omitempty"`
+	SanitizeCookies *bool  `json:"sanitize_cookies,omitempty"`
+	Timeout         int    `json:"timeout,omitempty"`
+	Out             string `json:"out,omitempty"`
 }
 
 func (r Request) ToString() (string, error) {
@@ -135,13 +223,14 @@ func (r Request) ToString() (string, error) {
 		}
 		if strings.HasPrefix(row, "Cookie:") {
 			// temporarily just print them without any formatting
+			// for now just raw key=value
 			cookies = append(cookies, strings.TrimSpace(strings.TrimPrefix(row, "Cookie:")))
 			continue
 		}
 		headers = append(headers, row)
 	}
 
-	t := tree.Root(fmt.Sprintf("%s %s", r.Method, r.URL)) // temporarily without query
+	t := tree.Root(fmt.Sprintf("%s %s", r.Method.Color(), r.req.URL))
 
 	if len(headers) > 0 {
 		h := tree.Root("Headers:")
@@ -182,12 +271,12 @@ func (r *Request) ToHTTP() (*http.Request, error) {
 	r.body.Close()
 
 	req, err := http.NewRequest(
-		strings.ToUpper(strings.TrimSpace((r.Method))),
+		strings.ToUpper(strings.TrimSpace(string(r.Method))),
 		r.URL,
 		r.GetBody(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
 	q := req.URL.Query()
@@ -219,6 +308,7 @@ func (r *Request) ToHTTP() (*http.Request, error) {
 	}
 
 	r.req = req
+
 	return req, nil
 }
 

@@ -146,7 +146,7 @@ func ApplyRunTimeFlags(cmd *cobra.Command, req *httpcore.Request) {
 func ApplyRequestFlags(cmd *cobra.Command, req httpcore.Request) (*httpcore.Request, error) {
 	if cmd.Flags().Changed("method") {
 		m, _ := cmd.Flags().GetString("method")
-		req.Method = m
+		req.Method = httpcore.Method(strings.ToUpper(m))
 	}
 
 	if cmd.Flags().Changed("header") {

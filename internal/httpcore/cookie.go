@@ -3,30 +3,31 @@ package httpcore
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/bigelle/ghostman/internal/shared"
 )
 
-type CookieJar map[string]Cookie
+//FIXME: ignoring for now
 
-func (j CookieJar) Get(d string) *Cookie {
-	c := j[d]
-	return &c
-}
-
-func (j *CookieJar) Load(r io.Reader) error {
-	dec := json.NewDecoder(r)
-	dec.DisallowUnknownFields()
-	return dec.Decode(j)
-}
-
-func (j CookieJar) Save(w io.Writer) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(j)
-}
+//type CookieJar map[string]Cookie
+//
+//func (j CookieJar) Get(d string) *Cookie {
+//	c := j[d]
+//	return &c
+//}
+//
+//func (j *CookieJar) Load(r io.Reader) error {
+//	dec := json.NewDecoder(r)
+//	dec.DisallowUnknownFields()
+//	return dec.Decode(j)
+//}
+//
+//func (j CookieJar) Save(w io.Writer) error {
+//	enc := json.NewEncoder(w)
+//	enc.SetIndent("", "  ")
+//	return enc.Encode(j)
+//}
 
 type Cookie struct {
 	Name        string     `json:"name"`
@@ -103,7 +104,7 @@ func (c *CookieTime) UnmarshalJSON(data []byte) error {
 
 	t, err := time.Parse(time.RFC1123, str)
 	if err != nil {
-		return err
+		return fmt.Errorf("error parsing cookie time: not RFC1123: %w", err)
 	}
 
 	c.Time = t.In(time.FixedZone("GMT", 0))
@@ -140,7 +141,7 @@ func (s *SameSite) UnmarshalJSON(data []byte) error {
 	var i string
 	err := json.Unmarshal(data, &i)
 	if err != nil {
-		return nil
+		return err
 	}
 	*s = s.FromString(i)
 	return nil

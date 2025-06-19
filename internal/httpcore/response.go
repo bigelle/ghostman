@@ -18,11 +18,13 @@ func NewResponse(r *http.Response) (*Response, error) {
 
 	if r.Body != nil {
 		buf := &bytes.Buffer{}
+
 		_, err := io.Copy(buf, r.Body)
 		if err != nil {
 			buf.Reset()
-			return nil, err
+			return nil, fmt.Errorf("error reading response body: %w", err)
 		}
+
 		resp.body = buf
 	}
 
@@ -101,3 +103,9 @@ func (r Response) String() string {
 func (h Response) IsSuccessful() bool {
 	return h.Code >= http.StatusOK && h.Code < http.StatusMultipleChoices
 }
+
+//temporarily just a string
+func (r Response) Body() string {
+	return r.body.String()
+}
+

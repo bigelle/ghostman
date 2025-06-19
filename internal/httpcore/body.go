@@ -55,22 +55,21 @@ func (h BodySpec) toGeneric() (*BodyGeneric, error) {
 	if h.File != nil {
 		f, err := os.Open(*h.File)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error opening file: %w", err)
 		}
 		defer f.Close()
 
 		_, err = io.Copy(buf, f)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error reading content: %w", err)
 		}
 	} else if h.Text != nil {
-		_, err := buf.WriteString(*h.Text)
-		if err != nil {
-			return nil, err
-		}
+		buf.WriteString(*h.Text)
 	}
+
 	b := buf.Bytes()
 	ct := mimetype.Detect(b)
+
 	return &BodyGeneric{Ct: ct.String(), B: b}, nil
 }
 
@@ -84,7 +83,7 @@ func (h BodySpec) toMultipart() (*BodyMultipart, error) {
 	for _, field := range *h.MultipartFields {
 		if field.Text != nil {
 			if err := body.AddField(field.Name, *field.Text); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error adding text part: %w", err)
 			}
 		}
 		if field.File != nil {
@@ -93,17 +92,17 @@ func (h BodySpec) toMultipart() (*BodyMultipart, error) {
 
 			f, err := os.Open(*field.File)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error opening file: %w", err)
 			}
 			defer f.Close()
 
 			_, err = io.Copy(buf, f)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error opening content: %w", err)
 			}
 
 			if err := body.AddFile(field.Name, *field.File, buf.Bytes()); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error adding file part: %w", err)
 			}
 		}
 	}
@@ -193,6 +192,7 @@ func (h *BodyMultipart) AddField(key, val string) error {
 
 func (h *BodyMultipart) AddFile(key, val string, file []byte) error {
 	r := bytes.NewReader(file)
+
 	header := textproto.MIMEHeader{
 		"Content-Disposition": []string{
 			"form-data", fmt.Sprintf("name=\"%s\"", key), fmt.Sprintf("filename=\"%s\"", val),
@@ -201,12 +201,18 @@ func (h *BodyMultipart) AddFile(key, val string, file []byte) error {
 			mimetype.Detect(file).String(),
 		},
 	}
+
 	part, err := h.Mw.CreatePart(header)
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating a part: %w", err)
 	}
+
 	_, err = io.Copy(part, r)
-	return err
+	if err != nil {
+		return fmt.Errorf("error writing to part: %w", err)
+	}
+
+	return nil
 }
 
 func (h BodyMultipart) ContentType() string {
