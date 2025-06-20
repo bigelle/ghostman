@@ -53,11 +53,8 @@ func NewClient(opts ...ClientOption) *Client {
 	return &Client{client: client, transport: transport, dialer: dialer}
 }
 
-func (c *Client) Send(req *Request) (*Response, error) {
-	r, err := req.ToHTTP()
-	if err != nil {
-		return nil, fmt.Errorf("error parsing request: %w", err)
-	}
+func (c *Client) Send(req *RequestConf) (*Response, error) {
+	r:= req.ToHTTP()
 
 	resp, err := c.client.Do(r)
 	if err != nil {

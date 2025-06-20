@@ -25,12 +25,12 @@ func DumpRequest(req *http.Request) (dump []byte, err error) {
 		if err != nil {
 			return nil, err
 		}
-		req.Body = io.NopCloser(bytes.NewReader(buf))
+		req.Body = &BytesReadCloser{*bytes.NewReader(buf)}
 	}
 
 	dump, err = httputil.DumpRequestOut(req, true)
 
-	req.Body = io.NopCloser(bytes.NewReader(buf))
+	req.Body = &BytesReadCloser{*bytes.NewReader(buf)}
 
 	if err != nil {
 		return nil, fmt.Errorf("error dumping request: %w", err)
@@ -53,4 +53,12 @@ func FormatBytes(bytes int64) string {
 
 	units := []string{"KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"}
 	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(div), units[exp])
+}
+
+type BytesReadCloser struct {
+	bytes.Reader
+}
+
+func (b BytesReadCloser) Close() error {
+	return nil
 }

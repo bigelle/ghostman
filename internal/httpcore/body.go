@@ -1,14 +1,10 @@
 package httpcore
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"mime/multipart"
-	"net/textproto"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/bigelle/ghostman/internal/shared"
 	"github.com/gabriel-vasile/mimetype"
@@ -22,13 +18,14 @@ type BodySpec struct {
 	MultipartFields *[]MultipartField    `json:"multipart_fields"`
 }
 
-func (h BodySpec) Parse() (Body, error) {
+func (h BodySpec) Parse() (*Body, error) {
 	switch h.Type {
 	case "form":
 		if h.FormData == nil {
 			return nil, fmt.Errorf("empty form")
 		}
-		return BodyForm(*h.FormData), nil
+		b := BodyForm(*h.FormData)
+		return &b, nil
 	case "multipart":
 		if h.MultipartFields == nil {
 			return nil, fmt.Errorf("no multipart fields")
@@ -44,7 +41,7 @@ func (h BodySpec) Parse() (Body, error) {
 	}
 }
 
-func (h BodySpec) toGeneric() (*BodyGeneric, error) {
+func (h BodySpec) toGeneric() (*Body, error) {
 	if h.File == nil && h.Text == nil {
 		return nil, fmt.Errorf("no text or file specified")
 	}
@@ -70,43 +67,17 @@ func (h BodySpec) toGeneric() (*BodyGeneric, error) {
 	b := buf.Bytes()
 	ct := mimetype.Detect(b)
 
-	return &BodyGeneric{Ct: ct.String(), B: b}, nil
+	return &Body{ContentType: ct.String(), Data: b}, nil
 }
 
-func (h BodySpec) toMultipart() (*BodyMultipart, error) {
+func (h BodySpec) toMultipart() (*Body, error) {
 	if len(*h.MultipartFields) == 0 {
 		return nil, fmt.Errorf("no multipart fields")
 	}
 
-	body := NewBodyMultipart()
+	body := BodyMultipart(*h.MultipartFields)
 
-	for _, field := range *h.MultipartFields {
-		if field.Text != nil {
-			if err := body.AddField(field.Name, *field.Text); err != nil {
-				return nil, fmt.Errorf("error adding text part: %w", err)
-			}
-		}
-		if field.File != nil {
-			buf := shared.BytesBuf()
-			defer shared.PutBytesBuf(buf)
-
-			f, err := os.Open(*field.File)
-			if err != nil {
-				return nil, fmt.Errorf("error opening file: %w", err)
-			}
-			defer f.Close()
-
-			_, err = io.Copy(buf, f)
-			if err != nil {
-				return nil, fmt.Errorf("error opening content: %w", err)
-			}
-
-			if err := body.AddFile(field.Name, *field.File, buf.Bytes()); err != nil {
-				return nil, fmt.Errorf("error adding file part: %w", err)
-			}
-		}
-	}
-	return body, nil
+	return &body, nil
 }
 
 type MultipartField struct {
@@ -115,118 +86,24 @@ type MultipartField struct {
 	File *string `json:"file,omitempty"`
 }
 
-type Body interface {
-	ContentType() string
-	Reader() io.Reader
-	Len() int64
-	Close() error
+type Body struct {
+	ContentType string
+	Data []byte
 }
 
-type BodyGeneric struct {
-	Ct string
-	B  []byte
+func BodyGeneric(b []byte) Body {
+	ct := mimetype.Detect(b)
+	return Body{ContentType: ct.String(), Data: b}
 }
 
-func (h BodyGeneric) ContentType() string {
-	return h.Ct
-}
-
-func (h BodyGeneric) Reader() io.Reader {
-	return bytes.NewReader(h.B)
-}
-
-func (h BodyGeneric) Len() int64 {
-	return int64(len(h.B))
-}
-
-func (b BodyGeneric) Close() error {
-	return nil
-}
-
-type BodyForm map[string][]string
-
-func (h *BodyForm) Add(key, val string) {
-	if h == nil {
-		return // not panicing
-	}
-	(*h)[key] = append((*h)[key], val)
-}
-
-func (h BodyForm) ContentType() string {
-	return "application/x-www-url-formencoded"
-}
-
-func (h BodyForm) Reader() io.Reader {
-	q := url.Values(h)
-	return strings.NewReader(q.Encode())
-}
-
-func (b BodyForm) Len() int64 {
-	// FIXME:
-	return 0
-}
-
-func (b BodyForm) Close() error {
-	return nil
-}
-
-type BodyMultipart struct {
-	Boundary string
-	Mw       *multipart.Writer
-	Buf      *bytes.Buffer
-}
-
-func NewBodyMultipart() *BodyMultipart {
-	buf := &bytes.Buffer{}
-	mw := multipart.NewWriter(buf)
-	return &BodyMultipart{
-		Boundary: mw.Boundary(),
-		Mw:       mw,
-		Buf:      buf,
+func BodyForm(form map[string][]string) Body {
+	q := url.Values(form)
+	return Body{
+		ContentType: "application/x-www-url-formencoded",
+		Data: []byte(q.Encode()),
 	}
 }
 
-func (h *BodyMultipart) AddField(key, val string) error {
-	return h.Mw.WriteField(key, val)
-}
-
-func (h *BodyMultipart) AddFile(key, val string, file []byte) error {
-	r := bytes.NewReader(file)
-
-	header := textproto.MIMEHeader{
-		"Content-Disposition": []string{
-			"form-data", fmt.Sprintf("name=\"%s\"", key), fmt.Sprintf("filename=\"%s\"", val),
-		},
-		"Content-Type": []string{
-			mimetype.Detect(file).String(),
-		},
-	}
-
-	part, err := h.Mw.CreatePart(header)
-	if err != nil {
-		return fmt.Errorf("error creating a part: %w", err)
-	}
-
-	_, err = io.Copy(part, r)
-	if err != nil {
-		return fmt.Errorf("error writing to part: %w", err)
-	}
-
-	return nil
-}
-
-func (h BodyMultipart) ContentType() string {
-	return "multipart/form-data; boundary=" + h.Boundary
-}
-
-func (h BodyMultipart) Reader() io.Reader {
-	return h.Buf
-}
-
-func (b BodyMultipart) Len() int64 {
-	return int64(b.Buf.Len())
-}
-
-func (b BodyMultipart) Close() error {
-	return b.Mw.Close()
+func BodyMultipart(parts []MultipartField) Body {
+	return Body{}
 }
