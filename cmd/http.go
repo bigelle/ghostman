@@ -27,20 +27,21 @@ type Options struct {
 }
 
 func PreRunHttp(cmd *cobra.Command, args []string) (err error) {
-	var body *httpcore.Body
-	if HasAttachments(cmd) {
-		body, err = AddData(cmd)
-		if err != nil {
-			return fmt.Errorf("error in pre-run task for http: %w", err)
-		}
-	}
-
-	req, err := httpcore.NewRequest(args[0], body)
+	req, err := httpcore.NewRequest(args[0])
 	if err != nil {
 		return fmt.Errorf("error in pre-run task for http: %w", err)
 	}
 
-	req, err = ApplyRequestFlags(cmd, *req)
+	buf, ct, err := ParseAttachments(cmd)
+	if err != nil {
+		return fmt.Errorf("parsing attachments: %w", err)
+	}
+
+	if buf != nil && ct != "" {
+		req.SetBody(buf, ct)
+	}
+
+	err = ApplyRequestFlags(cmd, req)
 	if err != nil {
 		return fmt.Errorf("error in pre-run task for http: %w", err)
 	}
@@ -105,16 +106,19 @@ func PreRunHttpFile(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("malformed or invalid request file: %w", err)
 	}
 
-	req, err = ApplyRequestFlags(cmd, *req)
+	b, ct, err := ParseAttachments(cmd)
+	if err != nil {
+		return fmt.Errorf("parsing attachments: %w", err)
+	}
+
+	if b != nil && ct != "" {
+		req.SetBody(b, ct)
+	}
+
+	err = ApplyRequestFlags(cmd, req)
 	if err != nil {
 		return fmt.Errorf("can't parse request flags: %w", err)
 	}
-
-	//if HasAttachments(cmd) {
-	//	if err := AttachBody(cmd, req); err != nil {
-	//		return fmt.Errorf("can't attach body: %w", err)
-	//	}
-	//}
 
 	ctx := cmd.Context()
 	withVal := context.WithValue(ctx, ctxKeyHttpReq, req)
@@ -150,7 +154,7 @@ func GetOptions(cmd *cobra.Command) Options {
 	return opts
 }
 
-func ApplyRequestFlags(cmd *cobra.Command, req httpcore.RequestConf) (*httpcore.RequestConf, error) {
+func ApplyRequestFlags(cmd *cobra.Command, req *httpcore.RequestConf) error {
 	if cmd.Flags().Changed("method") {
 		m, _ := cmd.Flags().GetString("method")
 		req.SetMethod(strings.ToUpper(m))
@@ -160,7 +164,7 @@ func ApplyRequestFlags(cmd *cobra.Command, req httpcore.RequestConf) (*httpcore.
 		h, _ := cmd.Flags().GetStringArray("header")
 		headers, err := ParseKeyValues(h)
 		if err != nil {
-			return nil, fmt.Errorf("invalid header: %w", err)
+			return fmt.Errorf("invalid header: %w", err)
 		}
 		for k, v := range headers {
 			req.AddHeader(k, v...)
@@ -171,7 +175,7 @@ func ApplyRequestFlags(cmd *cobra.Command, req httpcore.RequestConf) (*httpcore.
 		q, _ := cmd.Flags().GetStringArray("query")
 		query, err := ParseKeyValues(q)
 		if err != nil {
-			return nil, fmt.Errorf("invalid query parameter: %w", err)
+			return fmt.Errorf("invalid query parameter: %w", err)
 		}
 		for k, v := range query {
 			req.AddQueryParam(k, v...)
@@ -182,14 +186,14 @@ func ApplyRequestFlags(cmd *cobra.Command, req httpcore.RequestConf) (*httpcore.
 		c, _ := cmd.Flags().GetStringArray("cookie")
 		cookies, err := ParseKeySingleValue(c)
 		if err != nil {
-			return nil, fmt.Errorf("invalid cookie: %w", err)
+			return fmt.Errorf("invalid cookie: %w", err)
 		}
 		for k, v := range cookies {
 			req.AddCookie(k, v)
 		}
 	}
 
-	return &req, nil
+	return nil
 }
 
 // works with both headers and query parameters
@@ -237,46 +241,53 @@ func ParseKeySingleValue(h []string) (map[string]string, error) {
 	return result, nil
 }
 
-func AddData(cmd *cobra.Command) (*httpcore.Body, error) {
+func ParseAttachments(cmd *cobra.Command) ([]byte, string, error) {
+	if cmd.Flags().Changed("data") {
+		return ParseData(cmd)
+	}
+	if cmd.Flags().Changed("form") {
+		return ParseForm(cmd)
+	}
+	if cmd.Flags().Changed("part") {
+		return ParseMultipart(cmd)
+	}
+	return nil, "", nil
+}
+
+func ParseData(cmd *cobra.Command) ([]byte, string, error) {
 	arg, _ := cmd.Flags().GetString("data")
 	arg = strings.TrimSpace(arg)
 
 	buf := shared.BytesBuf()
+	var ct *mimetype.MIME
 	defer shared.PutBytesBuf(buf)
-
-	var body *httpcore.Body
 
 	if strings.HasPrefix(arg, "@") {
 		path := strings.TrimPrefix(arg, "@")
 
 		f, err := os.Open(path)
 		if err != nil {
-			return nil, fmt.Errorf("error opening file: %w", err)
+			return nil, "", fmt.Errorf("error opening file: %w", err)
 		}
 		defer f.Close()
 
 		_, err = io.Copy(buf, f)
 		if err != nil {
-			return nil, fmt.Errorf("error reading content: %w", err)
+			return nil, "", fmt.Errorf("error reading content: %w", err)
 		}
 
-		ct := mimetype.Detect(buf.Bytes())
-
-		body = &httpcore.Body{ContentType: ct.String(), Data: buf.Bytes()}
-
+		ct = mimetype.Detect(buf.Bytes())
 	} else {
 		buf.WriteString(arg)
 
-		ct := mimetype.Detect(buf.Bytes())
-
-		body = &httpcore.Body{ContentType: ct.String(), Data: buf.Bytes()}
+		ct = mimetype.Detect(buf.Bytes())
 
 	}
 
-	return body, nil
+	return buf.Bytes(), ct.String(), nil
 }
 
-func AddForm(cmd *cobra.Command, req *httpcore.RequestConf) error {
+func ParseForm(cmd *cobra.Command) (buf []byte, ct string, err error) {
 	args, _ := cmd.Flags().GetStringArray("form")
 	form := make(map[string][]string)
 
@@ -286,7 +297,7 @@ func AddForm(cmd *cobra.Command, req *httpcore.RequestConf) error {
 		// FIXME: probably shouldn't use cut
 		key, val, ok := strings.Cut(arg, "=")
 		if !ok {
-			return fmt.Errorf("wrong form syntax: must be exactly one '=' separator")
+			return nil, "", fmt.Errorf("wrong form syntax: must be exactly one '=' separator")
 		}
 
 		if strings.HasPrefix(val, "@") {
@@ -296,13 +307,13 @@ func AddForm(cmd *cobra.Command, req *httpcore.RequestConf) error {
 			path := strings.TrimPrefix(val, "@")
 			f, err := os.Open(path)
 			if err != nil {
-				return fmt.Errorf("error opening file: %w", err)
+				return nil, "", fmt.Errorf("error opening file: %w", err)
 			}
 			defer f.Close()
 
 			_, err = io.Copy(buf, f)
 			if err != nil {
-				return fmt.Errorf("error reading content: %w", err)
+				return nil, "", fmt.Errorf("error reading content: %w", err)
 			}
 
 			val = buf.String()
@@ -310,24 +321,22 @@ func AddForm(cmd *cobra.Command, req *httpcore.RequestConf) error {
 
 		form[key] = append(form[key], val)
 	}
-	body := httpcore.BodyForm(form)
-	req.SetBody(&body)
-	return nil
+
+	buf = httpcore.FormBytes(form)
+	return buf, "application/x-www-form-urlencoded", nil
 }
 
-// FIXME:
-
-func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.RequestConf) error {
+func ParseMultipart(cmd *cobra.Command) (buf []byte, ct string, err error) {
 	args, _ := cmd.Flags().GetStringArray("part")
-	
-	parts := make([]httpcore.MultipartField, len(args))
+
+	builder := httpcore.NewMultipartBuilder()
 
 	for _, arg := range args {
 		arg = strings.TrimSpace(arg)
 
 		key, val, ok := strings.Cut(arg, "=")
 		if !ok {
-			return fmt.Errorf("wrong part syntax: must be exactly one '=' separator")
+			return nil, "", fmt.Errorf("wrong part syntax: must be exactly one '=' separator")
 		}
 
 		if strings.HasPrefix(val, "@") {
@@ -335,48 +344,52 @@ func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.RequestConf) error {
 			defer shared.PutBytesBuf(buf)
 
 			path := strings.TrimPrefix(val, "@")
-			f, err := os.Open(path)
+			var f *os.File
+			f, err = os.Open(path)
 			if err != nil {
-				return fmt.Errorf("error opening file: %w", err)
+				return nil, "", fmt.Errorf("opening file: %w", err)
 			}
 			defer f.Close()
 
-			_, err = io.Copy(buf, f)
+			err = builder.AddFileReader(key, path, f)
 			if err != nil {
-				return fmt.Errorf("error reading content: %w", err)
+				return nil, "", fmt.Errorf("adding form file: %w", err)
 			}
 
-			if err := body.AddFile(key, val, buf.Bytes()); err != nil {
-				return fmt.Errorf("error adding file part: %w", err)
-			}
 		} else if strings.HasPrefix(val, "<@") {
 			buf := shared.BytesBuf()
 			defer shared.PutBytesBuf(buf)
 
 			path := strings.TrimPrefix(val, "<@")
-			f, err := os.Open(path)
+			var f *os.File
+			f, err = os.Open(path)
 			if err != nil {
-				return fmt.Errorf("error opening file: %w", err)
+				return nil, "", fmt.Errorf("opening file: %w", err)
 			}
 			defer f.Close()
 
 			_, err = io.Copy(buf, f)
 			if err != nil {
-				return fmt.Errorf("error reading content: %w", err)
+				return nil, "", fmt.Errorf("reading file content: %w", err)
 			}
 
-			if err := body.AddField(key, buf.String()); err != nil {
-				return fmt.Errorf("error adding text part: %w", err)
+			err = builder.AddTextField(key, buf.String())
+			if err != nil {
+				return nil, "", fmt.Errorf("adding text field: %w", err)
 			}
+
 		} else {
-			if err := body.AddField(key, val); err != nil {
-				return fmt.Errorf("error adding text part: %w", err)
+			err = builder.AddTextField(key, val)
+			if err != nil {
+				return nil, "", fmt.Errorf("adding text field: %w", err)
 			}
 		}
 	}
 
-	req.SetBody(body)
-	return nil
+	if buf, err = builder.Build(); err != nil {
+		return nil, "", fmt.Errorf("building multipart: %w", err)
+	}
+	return buf, "multipart/form-data; boundary=" + builder.Boundary(), nil
 }
 
 func HasAttachments(cmd *cobra.Command) bool {

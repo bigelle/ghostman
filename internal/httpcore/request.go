@@ -13,24 +13,15 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 )
 
-func NewRequest(reqUrl string, body *Body) (*RequestConf, error) {
+func NewRequest(reqUrl string) (*RequestConf, error) {
 	_, err := url.ParseRequestURI(reqUrl)
 	if err != nil {
 		return nil, fmt.Errorf("invalid request URL: %w", err)
 	}
 
-	var r io.Reader
-	if body != nil {
-		r = bytes.NewReader(body.Data)
-	}
-
-	req, err := http.NewRequest(http.MethodGet, reqUrl, r)
+	req, err := http.NewRequest(http.MethodGet, reqUrl, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
-	}
-
-	if body != nil {
-		req.Header.Add("Content-Type", body.ContentType)
 	}
 
 	return &RequestConf{req: req}, nil
@@ -51,17 +42,15 @@ func NewRequestFromJSON(j []byte) (req *RequestConf, err error) {
 		return nil, fmt.Errorf("error reading request config: %w", err)
 	}
 
-	var body *Body
+	var buf []byte
 	if ser.Body != nil {
-		body, err = ser.Body.Parse()
+		buf, err = ser.Body.Parse()
 		if err != nil {
 			return nil, fmt.Errorf("error parsing body: %w", err)
 		}
-	} else {
-		body = &Body{}
-	}
+	} 
 
-	request, err := http.NewRequest(ser.Method, ser.URL, bytes.NewReader(body.Data))
+	request, err := http.NewRequest(ser.Method, ser.URL, bytes.NewReader(buf))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
@@ -90,8 +79,9 @@ func NewRequestFromJSON(j []byte) (req *RequestConf, err error) {
 		}
 	}
 
-	if body != nil {
-		request.Header.Add("Content-Type", body.ContentType)
+	if buf != nil {
+		ct := mimetype.Detect(buf)
+		request.Header.Add("Content-Type", ct.String())
 	}
 
 	return &RequestConf{req: request}, nil
@@ -200,9 +190,20 @@ func (c *RequestConf) AddCookie(key string, val string) {
 	c.req.AddCookie(&http.Cookie{Name: key, Value: val})
 }
 
-func (r *RequestConf) SetBody(b *Body) {
-	r.req.Body = &BytesReadCloser{*bytes.NewReader(b.Data)}
-	r.req.Header.Add("Content-Type", b.ContentType)
+func (r *RequestConf) SetBody(buf []byte, ct string) {
+	if buf == nil {
+		return
+	}
+
+	r.req.Body = io.NopCloser(bytes.NewReader(buf))
+
+	if ct == "" {
+		mimeCt := mimetype.Detect(buf)
+		ct = mimeCt.String()
+	}
+	r.req.Header.Add("Content-Type", ct)
+
+	r.req.ContentLength = int64(len(buf))
 }
 
 type RequestSerializable struct {
