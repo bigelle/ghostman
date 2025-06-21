@@ -23,17 +23,39 @@ func DumpRequest(req *http.Request) (dump []byte, err error) {
 	if req.Body != nil {
 		buf, err = io.ReadAll(req.Body)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("reading request body: %w", err)
 		}
-		req.Body = &BytesReadCloser{*bytes.NewReader(buf)}
+		req.Body = io.NopCloser(bytes.NewReader(buf))
 	}
 
 	dump, err = httputil.DumpRequestOut(req, true)
 
-	req.Body = &BytesReadCloser{*bytes.NewReader(buf)}
+	req.Body = io.NopCloser(bytes.NewReader(buf))
 
 	if err != nil {
-		return nil, fmt.Errorf("error dumping request: %w", err)
+		return nil, fmt.Errorf("dumping request: %w", err)
+	}
+
+	return dump, nil
+}
+
+func DumpResponse(resp *http.Response, body bool) (dump []byte, err error) {
+	var buf []byte
+
+	if resp.Body != nil {
+		buf, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("reading response body: %w", err)
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(buf))
+	}
+
+	dump, err = httputil.DumpResponse(resp, body)
+	
+	resp.Body = io.NopCloser(bytes.NewReader(buf))
+
+	if err != nil {
+		return nil, fmt.Errorf("dumping response: %w", err)
 	}
 
 	return dump, nil

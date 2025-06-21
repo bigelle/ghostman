@@ -8,104 +8,82 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss/tree"
+	"github.com/gabriel-vasile/mimetype"
 )
 
-func NewResponse(r *http.Response) (*Response, error) {
-	resp := Response{
-		Code:    r.StatusCode,
-		Headers: r.Header,
-	}
-
-	if r.Body != nil {
-		buf := &bytes.Buffer{}
-
-		_, err := io.Copy(buf, r.Body)
-		if err != nil {
-			buf.Reset()
-			return nil, fmt.Errorf("error reading response body: %w", err)
-		}
-
-		resp.body = buf
-	}
-
-	if cookies := r.Cookies(); cookies != nil {
-		arr := make([]Cookie, len(cookies))
-		for i, c := range cookies {
-			v := Cookie{
-				Name:        c.Name,
-				Value:       c.Value,
-				Domain:      c.Domain,
-				Expires:     CookieTime{c.Expires},
-				HttpOnly:    c.HttpOnly,
-				MaxAge:      &c.MaxAge,
-				Partitioned: c.Partitioned,
-				Path:        c.Path,
-				Secure:      c.Secure,
-				SameSite:    SameSite(c.SameSite),
-			}
-			arr[i] = v
-		}
-		resp.Cookies = arr
-	}
-
-	return &resp, nil
-}
-
 type Response struct {
-	Code    int                 `json:"code"`
-	Headers map[string][]string `json:"headers"`
-	Cookies []Cookie            `json:"cookies"`
-
-	body *bytes.Buffer
+	resp *http.Response
+	body []byte // used for reading after closing the resp.Body
 }
 
-func (r Response) String() string {
-	t := tree.Root(fmt.Sprintf("%d %s", r.Code, http.StatusText(r.Code)))
+func (r Response) ToString() (str string, err error) {
+	dumpBody := false
+	if r.body != nil {
+		rdr := bytes.NewReader(r.body)
+		r.resp.Body = io.NopCloser(rdr)
+		dumpBody = true
+	}
 
-	if len(r.Headers) > 0 {
-		h := tree.Root("Headers:")
-		for key, vals := range r.Headers {
-			h.Child(fmt.Sprintf("%s: %s", key, strings.Join(vals, "; ")))
+	var dump []byte
+	dump, err = DumpResponse(r.resp, dumpBody)
+	if err != nil {
+		return "", fmt.Errorf("dumping response safely: %w", err)
+	}
+
+	parts := strings.Split(string(dump), "\r\n")
+	if len(parts) == 1 {
+		return "", fmt.Errorf("malformed response")
+	}
+
+	parts = parts[1:]
+
+	var headers []string
+	var cookies []string
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			break
 		}
+		if strings.HasPrefix(part, "Set-Cookie:") {
+			cookies = append(cookies, strings.TrimSpace(strings.TrimPrefix(part, "Set-Cookie:")))
+			continue
+		}
+		headers = append(headers, strings.TrimSpace(part))
+	}
+
+	t := tree.Root(Status(r.resp.StatusCode))
+
+	if len(headers) != 0 {
+		h := tree.Root("Headers:")
+		for _, header := range headers {
+			h.Child(header)
+		}
+
 		t.Child(h)
 	}
 
-	if len(r.Cookies) > 0 {
+	if len(cookies) != 0 {
 		c := tree.Root("Set-Cookie:")
-		for _, cookie := range r.Cookies {
-			c.Child(cookie.String())
+		for _, cookie := range cookies {
+			c.Child(cookie)
 		}
+
 		t.Child(c)
 	}
 
-	if r.body != nil {
-		b, err := func() (*tree.Tree, error) {
-			size := FormatBytes(int64(r.body.Len()))
+	bytesIndex := bytes.Index(dump, []byte("\r\n\r\n"))
+	if bytesIndex != -1 && bytesIndex+4 != len(dump) {
+		body := dump[bytesIndex+4:]
 
-			ct, ok := r.Headers["Content-Type"]
-			if !ok {
-				return nil, fmt.Errorf("no content type, weird")
-			}
-			ctStr := strings.Join(ct, "; ")
-			return tree.Root(fmt.Sprintf("Body: %s of %s", size, ctStr)), nil
-		}()
-		if err != nil {
-			fmt.Println(err)
+		size := FormatBytes(int64(len(body)))
+
+		ct := r.resp.Header.Get("Content-Type")
+		if ct == "" {
+			mimeCt := mimetype.Detect(body)
+			ct = mimeCt.String()
 		}
 
-		t.Child(b)
+		t.Child(fmt.Sprintf("Body: %s of %s", size, ct))
 	}
 
-	result := t.String()
-	return result
+	return t.String(), nil
 }
-
-func (h Response) IsSuccessful() bool {
-	return h.Code >= http.StatusOK && h.Code < http.StatusMultipleChoices
-}
-
-//temporarily just a string
-func (r Response) Body() string {
-	return r.body.String()
-}
-

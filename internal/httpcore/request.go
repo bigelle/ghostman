@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss/tree"
+	"github.com/gabriel-vasile/mimetype"
 )
 
 func NewRequest(reqUrl string, body *Body) (*RequestConf, error) {
@@ -27,7 +28,10 @@ func NewRequest(reqUrl string, body *Body) (*RequestConf, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
-	req.Header.Add("Content-Type", body.ContentType)
+
+	if body != nil {
+		req.Header.Add("Content-Type", body.ContentType)
+	}
 
 	return &RequestConf{req: req}, nil
 }
@@ -107,12 +111,6 @@ func (r RequestConf) ToString() (string, error) {
 		return "", err
 	}
 
-	bodyIndex := bytes.Index(dump, []byte("\r\n\r\n"))
-	var body []byte
-	if bodyIndex != -1 {
-		body = dump[bodyIndex+4:]
-	}
-
 	rows := strings.Split(string(dump), "\r\n")
 	if len(rows) == 0 {
 		return "", fmt.Errorf("malformed request")
@@ -153,9 +151,16 @@ func (r RequestConf) ToString() (string, error) {
 		t.Child(c)
 	}
 
-	if body != nil {
+	bodyIndex := bytes.Index(dump, []byte("\r\n\r\n"))
+	if bodyIndex != -1 && bodyIndex+4 != len(dump) {
+		body := dump[bodyIndex+4:]
 		size := FormatBytes(int64(len(body)))
-		t.Child(fmt.Sprintf("Body: %s of %s", size, r.req.Header.Get("Content-Type")))
+		ct := r.req.Header.Get("Content-Type")
+		if ct == "" {
+			mimeCt := mimetype.Detect(body)
+			ct = mimeCt.String()
+		}
+		t.Child(fmt.Sprintf("Body: %s of %s", size, ct))
 	}
 
 	return t.String(), nil

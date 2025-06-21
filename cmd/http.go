@@ -62,7 +62,7 @@ func RunHttp(cmd *cobra.Command, args []string) (err error) {
 
 	str, err := req.ToString()
 	if err != nil {
-		return fmt.Errorf("error in run task for http: %w", err)
+		return fmt.Errorf("formatting request: %w", err)
 	}
 	fmt.Println(str)
 
@@ -73,16 +73,15 @@ func RunHttp(cmd *cobra.Command, args []string) (err error) {
 	client := httpcore.NewClient()
 	resp, err := client.Send(req)
 	if err != nil {
-		return fmt.Errorf("error in run task for http: %w", err)
+		return fmt.Errorf("sending request: %w", err)
 	}
 
-	fmt.Println(resp.String())
-
-	if opts.Out != "" {
-		if opts.Out == "stdout" {
-			fmt.Println(resp.Body())
-		}
+	str, err = resp.ToString()
+	if err != nil {
+		return fmt.Errorf("formatting response: %w", err)
 	}
+	fmt.Printf("\n%s\n", str)
+
 	return nil
 }
 

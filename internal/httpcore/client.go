@@ -3,6 +3,7 @@ package httpcore
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -54,7 +55,7 @@ func NewClient(opts ...ClientOption) *Client {
 }
 
 func (c *Client) Send(req *RequestConf) (*Response, error) {
-	r:= req.ToHTTP()
+	r := req.ToHTTP()
 
 	resp, err := c.client.Do(r)
 	if err != nil {
@@ -62,10 +63,16 @@ func (c *Client) Send(req *RequestConf) (*Response, error) {
 	}
 	defer resp.Body.Close()
 
-	res, err :=  NewResponse(resp)
+	res := Response{resp: resp}
+
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing response: %w", err)
+		// how do i handle this? i still should return a response, but with no body
+		return &res, fmt.Errorf("copying response body: %w", err)
 	}
 
-	return res, nil
+	res.body = data
+
+
+	return &res, nil
 }
