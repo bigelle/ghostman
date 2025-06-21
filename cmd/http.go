@@ -29,7 +29,7 @@ type Options struct {
 func PreRunHttp(cmd *cobra.Command, args []string) (err error) {
 	var body *httpcore.Body
 	if HasAttachments(cmd) {
-		body, err = AttachBodyData(cmd)
+		body, err = AddData(cmd)
 		if err != nil {
 			return fmt.Errorf("error in pre-run task for http: %w", err)
 		}
@@ -237,7 +237,7 @@ func ParseKeySingleValue(h []string) (map[string]string, error) {
 	return result, nil
 }
 
-func AttachBodyData(cmd *cobra.Command) (*httpcore.Body, error) {
+func AddData(cmd *cobra.Command) (*httpcore.Body, error) {
 	arg, _ := cmd.Flags().GetString("data")
 	arg = strings.TrimSpace(arg)
 
@@ -276,7 +276,7 @@ func AttachBodyData(cmd *cobra.Command) (*httpcore.Body, error) {
 	return body, nil
 }
 
-func AttachBodyForm(cmd *cobra.Command, req *httpcore.RequestConf) error {
+func AddForm(cmd *cobra.Command, req *httpcore.RequestConf) error {
 	args, _ := cmd.Flags().GetStringArray("form")
 	form := make(map[string][]string)
 
@@ -317,66 +317,67 @@ func AttachBodyForm(cmd *cobra.Command, req *httpcore.RequestConf) error {
 
 // FIXME:
 
-//func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.RequestConf) error {
-//	args, _ := cmd.Flags().GetStringArray("part")
-//	body := httpcore.NewBodyMultipart()
-//
-//	for _, arg := range args {
-//		arg = strings.TrimSpace(arg)
-//
-//		key, val, ok := strings.Cut(arg, "=")
-//		if !ok {
-//			return fmt.Errorf("wrong part syntax: must be exactly one '=' separator")
-//		}
-//
-//		if strings.HasPrefix(val, "@") {
-//			buf := shared.BytesBuf()
-//			defer shared.PutBytesBuf(buf)
-//
-//			path := strings.TrimPrefix(val, "@")
-//			f, err := os.Open(path)
-//			if err != nil {
-//				return fmt.Errorf("error opening file: %w", err)
-//			}
-//			defer f.Close()
-//
-//			_, err = io.Copy(buf, f)
-//			if err != nil {
-//				return fmt.Errorf("error reading content: %w", err)
-//			}
-//
-//			if err := body.AddFile(key, val, buf.Bytes()); err != nil {
-//				return fmt.Errorf("error adding file part: %w", err)
-//			}
-//		} else if strings.HasPrefix(val, "<@") {
-//			buf := shared.BytesBuf()
-//			defer shared.PutBytesBuf(buf)
-//
-//			path := strings.TrimPrefix(val, "<@")
-//			f, err := os.Open(path)
-//			if err != nil {
-//				return fmt.Errorf("error opening file: %w", err)
-//			}
-//			defer f.Close()
-//
-//			_, err = io.Copy(buf, f)
-//			if err != nil {
-//				return fmt.Errorf("error reading content: %w", err)
-//			}
-//
-//			if err := body.AddField(key, buf.String()); err != nil {
-//				return fmt.Errorf("error adding text part: %w", err)
-//			}
-//		} else {
-//			if err := body.AddField(key, val); err != nil {
-//				return fmt.Errorf("error adding text part: %w", err)
-//			}
-//		}
-//	}
-//
-//	req.SetBody(body)
-//	return nil
-//}
+func AttachBodyMultipart(cmd *cobra.Command, req *httpcore.RequestConf) error {
+	args, _ := cmd.Flags().GetStringArray("part")
+	
+	parts := make([]httpcore.MultipartField, len(args))
+
+	for _, arg := range args {
+		arg = strings.TrimSpace(arg)
+
+		key, val, ok := strings.Cut(arg, "=")
+		if !ok {
+			return fmt.Errorf("wrong part syntax: must be exactly one '=' separator")
+		}
+
+		if strings.HasPrefix(val, "@") {
+			buf := shared.BytesBuf()
+			defer shared.PutBytesBuf(buf)
+
+			path := strings.TrimPrefix(val, "@")
+			f, err := os.Open(path)
+			if err != nil {
+				return fmt.Errorf("error opening file: %w", err)
+			}
+			defer f.Close()
+
+			_, err = io.Copy(buf, f)
+			if err != nil {
+				return fmt.Errorf("error reading content: %w", err)
+			}
+
+			if err := body.AddFile(key, val, buf.Bytes()); err != nil {
+				return fmt.Errorf("error adding file part: %w", err)
+			}
+		} else if strings.HasPrefix(val, "<@") {
+			buf := shared.BytesBuf()
+			defer shared.PutBytesBuf(buf)
+
+			path := strings.TrimPrefix(val, "<@")
+			f, err := os.Open(path)
+			if err != nil {
+				return fmt.Errorf("error opening file: %w", err)
+			}
+			defer f.Close()
+
+			_, err = io.Copy(buf, f)
+			if err != nil {
+				return fmt.Errorf("error reading content: %w", err)
+			}
+
+			if err := body.AddField(key, buf.String()); err != nil {
+				return fmt.Errorf("error adding text part: %w", err)
+			}
+		} else {
+			if err := body.AddField(key, val); err != nil {
+				return fmt.Errorf("error adding text part: %w", err)
+			}
+		}
+	}
+
+	req.SetBody(body)
+	return nil
+}
 
 func HasAttachments(cmd *cobra.Command) bool {
 	return cmd.Flags().Changed("data") ||
