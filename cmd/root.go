@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os"
-	"strings"
 
 	"github.com/bigelle/ghostman/internal/httpcore"
 	"github.com/spf13/cobra"
@@ -85,16 +84,12 @@ func init() {
 }
 
 func PreRun(cmd *cobra.Command, args []string) error {
-	arg := args[0]
 	isFromFile, _ := cmd.Flags().GetBool("from-file")
 	if isFromFile {
 		// FIXME: TEMPORARILY just trying to read it as a HttpRequest
 		return PreRunHttpFile(cmd, args)
 	}
-	if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
-		return PreRunHttp(cmd, args)
-	}
-	return nil
+	return PreRunHttp(cmd, args)
 }
 
 func Run(cmd *cobra.Command, args []string) error {

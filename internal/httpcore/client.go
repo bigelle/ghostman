@@ -9,21 +9,13 @@ import (
 	"time"
 )
 
-type Client struct {
-	client    *http.Client
-	transport *http.Transport
-	dialer    *net.Dialer
-}
-
-type ClientOption func(*http.Client, *http.Transport, *net.Dialer)
-
-func NewClient(opts ...ClientOption) *Client {
-	dialer := &net.Dialer{
+var (
+	dialer *net.Dialer = &net.Dialer{
 		Timeout:   8 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}
 
-	transport := &http.Transport{
+	transport *http.Transport = &http.Transport{
 		DialContext:           dialer.DialContext,
 		ForceAttemptHTTP2:     false,
 		MaxIdleConns:          200,
@@ -40,13 +32,23 @@ func NewClient(opts ...ClientOption) *Client {
 		},
 	}
 
-	client := &http.Client{
+	client *http.Client = &http.Client{
 		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
+)
 
+type Client struct {
+	client    *http.Client
+	transport *http.Transport
+	dialer    *net.Dialer
+}
+
+type ClientOption func(*http.Client, *http.Transport, *net.Dialer)
+
+func NewClient(opts ...ClientOption) *Client {
 	for _, opt := range opts {
 		opt(client, transport, dialer)
 	}
@@ -57,9 +59,9 @@ func NewClient(opts ...ClientOption) *Client {
 func (c *Client) Send(req *RequestConf) (*Response, error) {
 	r := req.ToHTTP()
 
-	resp, err := c.client.Do(r)
+	resp, err := client.Do(r)
 	if err != nil {
-		return nil, fmt.Errorf("error sending request: %w", err)
+		return nil, fmt.Errorf("doing request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -72,7 +74,6 @@ func (c *Client) Send(req *RequestConf) (*Response, error) {
 	}
 
 	res.body = data
-
 
 	return &res, nil
 }

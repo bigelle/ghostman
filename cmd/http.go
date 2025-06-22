@@ -27,7 +27,12 @@ type Options struct {
 }
 
 func PreRunHttp(cmd *cobra.Command, args []string) (err error) {
-	req, err := httpcore.NewRequest(args[0])
+	reqURL, err := httpcore.DetectSchema(args[0])
+	if err != nil {
+		return fmt.Errorf("detecting URL schema: %w", err)
+	}
+
+	req, err := httpcore.NewRequest(reqURL)
 	if err != nil {
 		return fmt.Errorf("error in pre-run task for http: %w", err)
 	}

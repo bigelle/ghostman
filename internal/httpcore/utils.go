@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 )
 
 func ExtractQueryParams(raw string) (map[string][]string, error) {
@@ -51,7 +52,7 @@ func DumpResponse(resp *http.Response, body bool) (dump []byte, err error) {
 	}
 
 	dump, err = httputil.DumpResponse(resp, body)
-	
+
 	resp.Body = io.NopCloser(bytes.NewReader(buf))
 
 	if err != nil {
@@ -77,10 +78,37 @@ func FormatBytes(bytes int64) string {
 	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(div), units[exp])
 }
 
-type BytesReadCloser struct {
-	bytes.Reader
-}
+func DetectSchema(rawURL string) (fullURL string, err error) {
+	if strings.HasPrefix(rawURL, "http://") || strings.HasPrefix(rawURL, "https://") {
+		return rawURL, nil
+	}
 
-func (b BytesReadCloser) Close() error {
-	return nil
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "https://" + rawURL
+	}
+
+	// trying HTTPS:
+	req, err := http.NewRequest("HEAD", rawURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("doing HEAD request to detect HTTP/S schema: %w", err)
+	}
+
+	_, err = client.Do(req)
+	if err == nil {
+		return rawURL, nil
+	}
+
+	// trying HTTP
+	rawURL = strings.ReplaceAll(rawURL, "https://", "http://")
+	req, err = http.NewRequest("HEAD", rawURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("doing HEAD request to detect HTTP/S: %w", err)
+	}
+
+	_, err = client.Do(req)
+	if err == nil {
+		return rawURL, nil
+	}
+
+	return "", fmt.Errorf("unable to detect schema for this url")
 }
