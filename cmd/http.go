@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/bigelle/ghostman/internal/httpcore"
@@ -90,7 +93,19 @@ func RunHttp(cmd *cobra.Command, args []string) (err error) {
 	fmt.Printf("\n%s\n", str)
 
 	if opts.Out != "" {
-		// TODO: make sure that the file exttension is appropriate
+		var exts []string
+		ext := filepath.Ext(opts.Out)
+		ct := resp.ContentType()
+
+		exts, err = mime.ExtensionsByType(ct)
+		if err != nil {
+			return fmt.Errorf("checking if file extension is suitable for the response body: %w", err)
+		}
+
+		if !slices.Contains(exts, ext) {
+			return fmt.Errorf("can't write %s into %s file", ct, ext)
+		}
+
 		var f *os.File
 		f, err = os.OpenFile(opts.Out, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o777)
 		if err != nil {

@@ -16,6 +16,15 @@ type Response struct {
 	body []byte // used for reading after closing the resp.Body
 }
 
+func(r *Response) ContentType() string {
+	ct := r.resp.Header.Get("Content-Type")
+	if ct == "" {
+		mimeCt := mimetype.Detect(r.body)
+		ct = mimeCt.String()
+	}
+	return ct
+}
+
 func (r Response) ToString() (str string, err error) {
 	dumpBody := false
 	if r.body != nil {
