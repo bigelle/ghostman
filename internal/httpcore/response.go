@@ -87,3 +87,14 @@ func (r Response) ToString() (str string, err error) {
 
 	return t.String(), nil
 }
+
+func (r *Response) WriteBodyTo(w io.Writer) error {
+	n, err := w.Write(r.body)
+	if err != nil {
+		return fmt.Errorf("writing body to the other destination: %w", err)
+	}
+	if n != len(r.body) {
+		return fmt.Errorf("wrote %d bytes, expected %d", n, len(r.body))
+	}
+	return nil
+}

@@ -37,8 +37,13 @@ func init() {
 	RootCmd.PersistentFlags().StringP(
 		"out",
 		"O",
-		"stdout",
+		"",
 		"set the output for the request. pass 'stdout' to print into stdout",
+	)
+	RootCmd.PersistentFlags().Bool(
+		"print-out",
+		false,
+		"print response body into stdout",
 	)
 
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "dump the whole request")

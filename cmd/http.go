@@ -24,6 +24,7 @@ type Options struct {
 	SendRequest bool
 	Verbose     bool
 	Out         string
+	PrintOut    bool
 }
 
 func PreRunHttp(cmd *cobra.Command, args []string) (err error) {
@@ -88,6 +89,33 @@ func RunHttp(cmd *cobra.Command, args []string) (err error) {
 	}
 	fmt.Printf("\n%s\n", str)
 
+	if opts.Out != "" {
+		// TODO: make sure that the file exttension is appropriate
+		var f *os.File
+		f, err = os.OpenFile(opts.Out, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o777)
+		if err != nil {
+			if os.IsPermission(err) {
+				return fmt.Errorf("opening file for writing: access denied")
+			}
+			return fmt.Errorf("opening file for writing: %w", err)
+		}
+		defer f.Close()
+
+		err = resp.WriteBodyTo(f)
+		if err != nil {
+			return fmt.Errorf("writing response body to file: %w", err)
+		}
+	}
+
+	if opts.PrintOut {
+		fmt.Println("\n==========BEGIN RESPONSE BODY==========")
+		err = resp.WriteBodyTo(os.Stdout)
+		if err != nil {
+			return fmt.Errorf("writing response body to stdout: %w", err)
+		}
+		fmt.Println("===========END RESPONSE BODY===========")
+	}
+
 	return nil
 }
 
@@ -140,7 +168,8 @@ func GetOptions(cmd *cobra.Command) Options {
 	opts := Options{
 		Verbose:     false,
 		SendRequest: true,
-		Out:         "stdout",
+		Out:         "",
+		PrintOut:    false,
 	}
 
 	if cmd.Flags().Changed("verbose") {
@@ -154,6 +183,10 @@ func GetOptions(cmd *cobra.Command) Options {
 	if cmd.Flags().Changed("send-request") {
 		f, _ := cmd.Flags().GetBool("send-request")
 		opts.SendRequest = f
+	}
+	if cmd.Flags().Changed("print-out") {
+		f, _ := cmd.Flags().GetBool("print-out")
+		opts.PrintOut = f
 	}
 
 	return opts
